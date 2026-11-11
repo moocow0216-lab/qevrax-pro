@@ -264,7 +264,7 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 .fld>span .pk{display:flex;gap:10px}.pickb{border:0;background:none;color:var(--gold2);cursor:pointer;font-size:11.5px;padding:0}.pickb[aria-pressed="true"]{color:#16120a;background:var(--gold);border-radius:4px;padding:0 5px}
 #paneCharts.picking .klbox,#paneCharts.picking .kmc{outline:1px dashed var(--gold);outline-offset:-2px}
 .ibtn[aria-pressed="true"]{border-color:var(--gold);color:var(--gold2);background:var(--gold-soft)}
-.hmz{position:absolute;left:8px;top:8px;z-index:3;width:268px;max-height:calc(100% - 40px);overflow:auto;background:rgba(5,9,18,.88);border:1px solid var(--edge2);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:2px;backdrop-filter:blur(4px)}
+.hmz{position:absolute;left:8px;top:6px;z-index:6;width:280px;max-height:calc(100% - 30px);overflow:auto;background:rgba(5,9,18,.97);box-shadow:0 14px 40px rgba(0,0,0,.6);border:1px solid var(--edge2);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:2px;backdrop-filter:blur(4px)}
 .hmz .zh{font-size:12px;font-weight:600;padding:4px 4px 2px;display:flex;justify-content:space-between}.hmz .zh span{font-weight:400;color:var(--dim);font-size:11px}
 .hmz .zh:first-child{color:#ff9b74}.hmz .zh:nth-of-type(2){color:#c6f26b}
 .zr{display:grid;grid-template-columns:16px auto 1fr 26px;align-items:center;gap:2px 6px;border:0;background:transparent;border-radius:5px;padding:3px 4px;cursor:pointer;text-align:left;color:var(--ink);font-size:12px}
@@ -454,7 +454,7 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
         <select class="sel" id="hmTf" aria-label="每一根的時間" title="每一根的時間"></select>
         <select class="sel" id="hmGrp" aria-label="價格級距" title="價格級距"></select>
         <select class="sel" id="hmWall" aria-label="強弱區要標幾個" title="買力、賣壓要各標幾個"></select>
-        <button class="ibtn" id="hmZBtn" aria-pressed="true" title="顯示／隱藏強弱區排行">排行</button>
+        <button class="ibtn" id="hmZBtn" aria-pressed="false" aria-expanded="false" aria-controls="hmZones" title="看買力、賣壓的完整排行">排行 ▾</button>
         <select class="sel" id="hmPal" aria-label="泡泡配色" title="泡泡配色"></select>
         <select class="sel" id="hmMinB" aria-label="成交泡泡門檻" title="成交多大才畫泡泡"></select>
         <span class="note" id="hmNote"></span>
@@ -3100,7 +3100,7 @@ function hmSample() {                                    // 每秒：把整本�
    ② 成交（30%）：最近約 25 小時在這個價位實際成交了多少錢（幣安 1 分 K 的成交額分到每個價位）
    ③ 未觸碰（15%）：價格多久沒回到這裡，越久沒碰分數越高（滿分 6 小時）
    ===================================================================== */
-const HZ = { vp: null, cell: 0, firstT: 0, busy: false, sym: '', list: LS.get('qxZoneList', true), sig: '' };
+const HZ = { vp: null, cell: 0, firstT: 0, busy: false, sym: '', list: false, sig: '', kv: 0, k1: null };
 async function vpLoad() {                                 // 成交分布：抓最近 1500 根 1 分 K
   const sym = QX.sym; if (!sym || HZ.busy) return; HZ.busy = true;
   try {
@@ -3108,7 +3108,7 @@ async function vpLoad() {                                 // 成交分布：抓�
     const cell = niceStep(+k[k.length - 1][4] * 0.0003), M = new Map();
     for (const b of k) { const t = b[0], h = +b[2], l = +b[3], qv = +b[7], tb = +b[10], r0 = Math.floor(l / cell), r1 = Math.floor(h / cell), n = r1 - r0 + 1;
       for (let r = r0; r <= r1; r++) { const z = M.get(r) || { v: 0, b: 0, touch: 0 }; z.v += qv / n; z.b += tb / n; z.touch = t; M.set(r, z); } }
-    Object.assign(HZ, { vp: M, cell, firstT: k[0][0], sym });
+    Object.assign(HZ, { vp: M, cell, firstT: k[0][0], sym, k1: k, kv: (HZ.kv || 0) + 1 });
   } catch (e) {} finally { HZ.busy = false; }
 }
 function hmWalls() {
@@ -3132,7 +3132,7 @@ function hmWalls() {
 }
 function zoneList() {                                     // 熱力圖左上角的排行榜
   const el = $('hmZones'); if (!el) return; const show = HZ.list && HM.wallN > 0 && HM.walls.length;
-  $('hmZBtn').setAttribute('aria-pressed', String(!!HZ.list)); el.hidden = !show; if (!show) return;
+  $('hmZBtn').setAttribute('aria-pressed', String(!!HZ.list)); $('hmZBtn').setAttribute('aria-expanded', String(!!HZ.list)); el.hidden = !show; if (!show) return;
   const PV2 = typeof PV === 'function' && false;
   const row = z => `<button class="zr ${z.side < 0 ? 'b' : 's'}" data-zp="${z.p}" title="點一下把熱力圖移到這個價位"><i>${'①②③④⑤'[z.rank]}</i><b>${klFmt(z.p)}</b><span class="zbar"><span style="width:${z.score}%"></span></span><em>${z.score}</em>
     <small>掛單 $${fUsd(z.nowL)}・存在 ${Math.round(z.pres * 100)}%・成交 $${fUsd(z.V)}・${z.untouched >= 24 ? '24 小時以上沒碰' : z.untouched >= 1 ? z.untouched.toFixed(1) + ' 小時沒碰' : Math.round(z.untouched * 60) + ' 分鐘前碰過'}</small></button>`;
@@ -3143,7 +3143,7 @@ function zoneList() {                                     // 熱力圖左上角�
 }
 function hmCols() {                                      // 依照選的時間，把每秒的資料合成一欄一欄（只合成新的那幾欄，不整個重算）
   const tf = HM.tf, A = HM.agg && HM.agg.tf === tf ? HM.agg : (HM.agg = { tf, done: [], pend: [], gi: null, lastT: -1, minVer: -1, ver: -1, cols: [] });
-  if (A.ver === HM.ver) return A.cols;
+  if (A.ver === HM.ver && A.kv === HZ.kv) return A.cols;
   const before = A.len || 0; let cols;
   if (tf === 1) cols = HM.raw;
   else if (tf < 60) {
@@ -3163,7 +3163,16 @@ function hmCols() {                                      // 依照選的時間�
     if (A.tailGi === gNow) { const t2 = (A.tail || []).concat(part); if (t2.length) cols.push(hmAgg(t2, gNow * tf)); }
     else { if (A.tail && A.tail.length) cols.push(hmAgg(A.tail, A.tailGi * tf)); if (part.length) cols.push(hmAgg(part, gNow * tf)); }
   }
-  A.ver = HM.ver; A.cols = cols; A.len = cols.length;
+  if (tf >= 60 && HZ.k1 && HZ.sym === QX.sym && cols.length) {
+    const first = cols[0].t, Z0 = hmCols.zero && hmCols.zero.length === HM.NB ? hmCols.zero : (hmCols.zero = new Float32Array(HM.NB)), H = [];
+    let grp = null;
+    for (const k of HZ.k1) { const t = k[0] / 1000; if (t >= first) break; const g0 = Math.floor(t / tf) * tf, o = +k[1], h = +k[2], l = +k[3], c = +k[4], qv = +k[7], tb = +k[10], mid = (h + l) / 2;
+      if (!grp || grp.t !== g0) { grp = { t: g0, base: cols[0].base, q: Z0, buy: 0, sell: 0, bvw: 0, svw: 0, o, hi: h, lo: l, last: c, hist: true }; H.push(grp); }
+      grp.buy += tb; grp.sell += qv - tb; grp.bvw += mid * tb; grp.svw += mid * (qv - tb); grp.hi = Math.max(grp.hi, h); grp.lo = Math.min(grp.lo, l); grp.last = c; }
+    if (H.length && H[H.length - 1].t === Math.floor(first / tf) * tf) H.pop();   // 跟第一欄同一根的不要重複
+    cols = H.concat(cols);
+  }
+  A.ver = HM.ver; A.kv = HZ.kv; A.cols = cols; A.len = cols.length;
   if (before && HM.off > 0.5 && cols.length > before) HM.off += cols.length - before;   // 往回看的時候，新資料進來畫面不動
   return cols;
 }
@@ -3247,11 +3256,11 @@ function hmDraw() {
     g.imageSmoothingEnabled = false;
     g.drawImage(HC.cv, xOf(start), yOf((kLo + kN) * cell), nC * cw, kN * cell * kY);
     // 2) K 棒（欄太窄就畫成價格線）
-    if (cw >= 3) {
-      const bw = Math.max(1, Math.round(cw * 0.62)), up = '#2ee6b0', dn = '#ff4d6a';
+    if (true) {
+      const bw = Math.max(1, Math.round(cw * 0.62)), up = '#2ee6b0', dn = '#ff4d6a', edge = cw >= 3;
       for (let j = 0; j < nC; j++) { const c = cols[start + j], x = xOf(start + j), cx = Math.round(x + cw / 2), isUp = c.last >= c.o, col = isUp ? up : dn;
         const yh = yOf(c.hi), yl = yOf(c.lo), yo = yOf(c.o), yc = yOf(c.last);
-        g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(cx - 1, yh - 1, 3, yl - yh + 2); g.fillRect(Math.round(cx - bw / 2) - 1, Math.min(yo, yc) - 1, bw + 2, Math.max(1, Math.abs(yc - yo)) + 2);   // 黑邊，在亮的熱力圖上也看得清楚
+        if (edge) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(cx - 1, yh - 1, 3, yl - yh + 2); } if (edge) g.fillRect(Math.round(cx - bw / 2) - 1, Math.min(yo, yc) - 1, bw + 2, Math.max(1, Math.abs(yc - yo)) + 2);   // 黑邊，在亮的熱力圖上也看得清楚
         g.fillStyle = col; g.fillRect(cx, yh, 1, Math.max(1, yl - yh)); g.fillRect(Math.round(cx - bw / 2), Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo))); }
     } else {
       g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1.4; g.beginPath();
@@ -3361,8 +3370,10 @@ function hmBind() {
   $('hmWall').onchange = e => { HM.wallN = +e.target.value; LS.set('qxHmWall', HM.wallN); hmWalls(); HM.dirty = true; };
   $('hmPal').innerHTML = Object.entries(HM_PAL).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join(''); $('hmPal').value = HM.pal;
   $('hmPal').onchange = e => { HM.pal = HM_PAL_OK(e.target.value); LS.set('qxHmPal', HM.pal); HM.dirty = true; };
-  $('hmZBtn').onclick = () => { HZ.list = !HZ.list; LS.set('qxZoneList', HZ.list); HZ.sig = ''; zoneList(); };
-  $('hmZones').addEventListener('click', e => { const b = e.target.closest('[data-zp]'); if (!b) return; HM.follow = false; HM.pc = +b.dataset.zp; HM.dirty = true; });
+  $('hmZBtn').onclick = e => { e.stopPropagation(); HZ.list = !HZ.list; HZ.sig = ''; zoneList(); };
+  document.addEventListener('pointerdown', e => { if (HZ.list && !e.target.closest('#hmZones') && !e.target.closest('#hmZBtn')) { HZ.list = false; zoneList(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && HZ.list) { HZ.list = false; zoneList(); } });
+  $('hmZones').addEventListener('click', e => { const b = e.target.closest('[data-zp]'); if (!b) return; HM.follow = false; HM.pc = +b.dataset.zp; HM.dirty = true; HZ.list = false; zoneList(); });
   $('hmZones').addEventListener('pointerdown', e => e.stopPropagation()); $('hmZones').addEventListener('wheel', e => e.stopPropagation());
   $('hmMinB').onchange = e => { HM.minB = /^a/.test(e.target.value) ? e.target.value : +e.target.value; LS.set('qxHmMinB', HM.minB); HM.dirty = true; };
 }
