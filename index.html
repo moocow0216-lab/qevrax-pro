@@ -3010,7 +3010,7 @@ function qxSym(sym) {
   QX.sym = sym; QX.px = 0; QX.mark = 0;
   $('tkSym').firstChild.textContent = sym.replace(/USDT$/, '');
   $('tkPx').textContent = '—'; $('tkCh').textContent = ''; $('tkMk').textContent = ''; $('dkSym').textContent = sym;
-  hmReset(); lqReset(); msStart(sym); lqLoad(); HZ.vp = null; HZ.cell = 0; HZ.sig = ''; vpLoad(); ofSymChanged(); bxLines();
+  hmReset(); hmRestore(sym); lqReset(); msStart(sym); lqLoad(); HZ.vp = null; HZ.cell = 0; HZ.sig = ''; vpLoad(); ofSymChanged(); bxLines();
 }
 
 /* =====================================================================
@@ -3037,6 +3037,34 @@ const HM_LUT = (() => {                               // 顏色表：深藍 → 
 function hmReset() {
   Object.assign(HM, { bids: new Map(), asks: new Map(), synced: false, buf: [], snapId: 0, lastU: null, snapBusy: false, tick: 0, raw: [], mins: [], cur: null, last: 0, t0: 0, off: 0, follow: true, pc: 0, span: 0, agg: null, ver: 0, minVer: 0, geo: null, drag: null, animed: false, dirty: true }); if (hmDraw.hc) hmDraw.hc.key = '';
   $('hmMsg').hidden = false; $('hmMsg').textContent = '正在連線到幣安訂單簿…';
+}
+
+/* ---------- 熱力圖歷史存在這台電腦：每分鐘一欄，關掉網頁再打開還看得到（最多 24 小時，每個幣分開存） ---------- */
+const HDB = { db: null, open: null };
+function hdbOpen() {
+  if (HDB.open) return HDB.open;
+  return (HDB.open = new Promise(res => { try { const r = indexedDB.open('qevrax-heat', 1);
+    r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains('min')) db.createObjectStore('min'); };
+    r.onsuccess = () => { HDB.db = r.result; res(HDB.db); }; r.onerror = () => res(null); } catch (e) { res(null); } }));
+}
+async function hdbSave(sym, col) {
+  const db = await hdbOpen(); if (!db) return;
+  try { const tx = db.transaction('min', 'readwrite'); tx.objectStore('min').put({ sym, tick: HM.tick, NB: HM.NB, t: col.t, base: col.base, q: col.q, buy: col.buy, sell: col.sell, bvw: col.bvw, svw: col.svw, o: col.o, hi: col.hi, lo: col.lo, last: col.last }, [sym, col.t]); } catch (e) {}
+}
+async function hdbLoad(sym) {
+  const db = await hdbOpen(); if (!db) return [];
+  const since = Math.floor(Date.now() / 1000) - 86400;
+  return new Promise(res => { try { const out = [], tx = db.transaction('min', 'readwrite'), st = tx.objectStore('min');
+    st.delete(IDBKeyRange.bound([sym, 0], [sym, since], false, true));            // 超過 24 小時的刪掉
+    const rq = st.getAll(IDBKeyRange.bound([sym, since], [sym, Infinity])); rq.onsuccess = () => res(rq.result || []); rq.onerror = () => res([]); } catch (e) { res([]); } });
+}
+async function hmRestore(sym) {                           // 換幣或打開網頁：把存過的每分鐘熱力圖讀回來
+  const L = await hdbLoad(sym); if (sym !== QX.sym || !L.length) return;
+  const tick = L[L.length - 1].tick, ok = L.filter(x => x.tick === tick && x.NB === HM.NB && x.q && x.q.length === HM.NB);
+  if (!ok.length) return; if (HM.tick && HM.tick !== tick) return;
+  HM.tick = tick; const have = new Set(HM.mins.map(c => c.t));
+  HM.mins = ok.filter(x => !have.has(x.t)).map(x => ({ t: x.t, base: x.base, q: x.q, buy: x.buy, sell: x.sell, bvw: x.bvw, svw: x.svw, o: x.o, hi: x.hi, lo: x.lo, last: x.last })).concat(HM.mins).sort((a, b) => a.t - b.t).slice(-1440);
+  HM.minVer = (HM.minVer || 0) + 1; HM.agg = null; HM.dirty = true;
 }
 function hmApply(d) {
   for (const [p, q] of d.b) { const P = +p, Q = +q; if (Q === 0) HM.bids.delete(P); else HM.bids.set(P, Q); }
@@ -3085,7 +3113,7 @@ function hmSample() {                                    // 每秒：把整本�
   for (const [p, v] of HM.asks) { const i = Math.floor(p / tk) - base; if (i >= 0 && i < NB) q[i] += p * v; }
   const R = HM.raw, prev = R[R.length - 1], pc = prev ? prev.last : HM.last;   // 這一秒沒有成交：K 棒＝上一根的收盤（一字線）
   const col = { t, base, q, buy: c ? c.buy : 0, sell: c ? c.sell : 0, bvw: c ? c.bvw : 0, svw: c ? c.svw : 0, o: c ? c.o : pc, hi: c ? c.hi : pc, lo: c ? c.lo : pc, last: c ? c.last : pc };
-  if (prev && Math.floor(prev.t / 60) !== Math.floor(t / 60)) { const m0 = Math.floor(prev.t / 60) * 60, mc = []; for (let i = R.length - 1; i >= 0 && R[i].t >= m0; i--) mc.unshift(R[i]); if (mc.length) { HM.mins.push(hmAgg(mc, m0)); if (HM.mins.length > 1440) HM.mins.shift(); HM.minVer = (HM.minVer || 0) + 1; } }
+  if (prev && Math.floor(prev.t / 60) !== Math.floor(t / 60)) { const m0 = Math.floor(prev.t / 60) * 60, mc = []; for (let i = R.length - 1; i >= 0 && R[i].t >= m0; i--) mc.unshift(R[i]); if (mc.length) { { const mcol = hmAgg(mc, m0); HM.mins.push(mcol); hdbSave(QX.sym, mcol); } if (HM.mins.length > 1440) HM.mins.shift(); HM.minVer = (HM.minVer || 0) + 1; } }
   R.push(col); if (R.length > 3600) R.shift();
   hmWalls();
   if (!HM.t0) HM.t0 = t;
@@ -3245,7 +3273,7 @@ function hmDraw() {
       const vals = new Float32Array(nC * kN);
       for (let j = 0; j < nC; j++) { const c = cols[start + j], rs = hmRows(c, G), o = kLo - c.rs0; for (let r = 0; r < kN; r++) { const i = o + r; if (i >= 0 && i < rs.length) vals[(kN - 1 - r) * nC + j] = rs[i]; } }
       if (HC.refKey !== `${HM.ver}|${HM.tf}|${G}`) {   // 顏色基準：每秒更新一次（移動時顏色不會閃）
-        const nz = []; for (let i = 0; i < vals.length; i += Math.max(1, Math.floor(vals.length / 3000))) if (vals[i] > 0) nz.push(vals[i]);
+        let cnt = 0; for (let i = 0; i < vals.length; i++) if (vals[i] > 0) cnt++; const stp = Math.max(1, Math.floor(cnt / 3000)), nz = []; let c2 = 0; for (let i = 0; i < vals.length; i++) if (vals[i] > 0 && (c2++ % stp) === 0) nz.push(vals[i]);
         nz.sort((a, b) => a - b); HC.ref = nz.length ? nz[Math.floor(nz.length * 0.985)] || nz[nz.length - 1] : 1; HC.refKey = `${HM.ver}|${HM.tf}|${G}`;
       }
       const off = HC.cv; if (off.width !== nC || off.height !== kN) { off.width = nC; off.height = kN; }
@@ -3279,6 +3307,9 @@ function hmDraw() {
       const vw = (c.bvw + c.svw) / v, x = xOf(start + j) + cw / 2, y = yOf(vw), r = 2.5 + (rMax - 2.5) * Math.sqrt(v / mx);
       const R2 = r * 112 / 94; g.globalAlpha = 0.88; g.drawImage(hmBubble(c.buy >= c.sell), x - R2, y - R2, R2 * 2, R2 * 2); g.globalAlpha = 1; }
   }
+  { let fi = -1; for (let i = 0; i < cols.length; i++) if (!cols[i].hist) { fi = i; break; }   // 補上的 K 棒和有掛單紀錄的分界
+    if (fi > 0) { const x = Math.round(xOf(fi)) + 0.5; if (x > 40 && x < pw) { g.strokeStyle = 'rgba(201,165,90,.55)'; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, ph); g.stroke(); g.setLineDash([]);
+      g.font = FONT; const t1 = '← 這之前只有 K 棒（沒有掛單紀錄）', tw = g.measureText(t1).width + 12, lx = Math.max(4, x - tw - 4); g.fillStyle = 'rgba(5,9,18,.85)'; g.fillRect(lx, ph - 24, tw, 18); g.fillStyle = '#c9a55a'; g.fillText(t1, lx + 6, ph - 11); } } }
   g.restore();
   // 4) 右邊：目前的訂單簿深度＋最大買牆、賣牆（用最新那一欄，不用每次掃整本訂單簿）
   const LC = HM.raw[HM.raw.length - 1], prs = LC ? hmRows(LC, G) : null, prof = new Float32Array(nR); let pm = 0;
