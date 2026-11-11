@@ -247,6 +247,11 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 .colive:empty{display:none}.colive span{color:var(--dim)}.colive b{text-align:right;font-weight:600}
 .coerr{margin:0;color:var(--dn);font-size:12px}.coerr:empty{display:none}
 .cof{display:flex;gap:6px;justify-content:flex-end}.cof .btn{padding:5px 10px;font-size:12.5px}.cof .gobtn{flex:1;height:36px}
+
+/* 開高低收放在週期選單旁邊 */
+#paneCharts .kmlg{flex:1;min-width:0;display:flex;gap:10px;white-space:nowrap;overflow:hidden;font-size:12px;font-variant-numeric:tabular-nums;mask-image:linear-gradient(90deg,#000 92%,transparent)}
+#paneCharts .kmo{display:inline-flex;gap:3px}#paneCharts .kmo em{font-style:normal;color:var(--dim)}#paneCharts .kmo i{font-style:normal}
+#paneCharts #klLg:empty{display:none}
 .kl{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0;position:relative}
 .kltop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.klsym{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#2a2e39);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}.klsym b{font-weight:800}
 .kltf{display:flex;gap:2px;flex-wrap:wrap}.kltf button{border:0;background:transparent;color:var(--muted);padding:6px 9px;border-radius:6px;font-size:13px;cursor:pointer}.kltf button:hover{background:rgba(127,127,127,.12)}.kltf button[aria-pressed="true"]{color:#2962ff;background:rgba(41,98,255,.12);font-weight:700}
@@ -621,12 +626,15 @@ async function klList() {                              // 幣種清單：照 24 
   $('klList').innerHTML = L.length ? L.map(x => `<button role="option" data-klsym="${x.symbol}" aria-selected="${x.symbol === (KL.pickP ? KL.pickP.sym : KL.sym)}"><b>${x.symbol.replace(/USDT$/, '')}</b><small>USDT 永續</small><span>${klFmt(+x.lastPrice)}</span><em class="${+x.priceChangePercent >= 0 ? 'up' : 'dn'}">${+x.priceChangePercent >= 0 ? '+' : ''}${(+x.priceChangePercent).toFixed(2)}%</em></button>`).join('')
     : (q ? `<button role="option" data-klsym="${q}USDT"><b>${esc(q)}</b><small>直接打開 ${esc(q)}USDT</small></button>` : '<p class="tlsub">讀取中…</p>');
 }
+function klOhlc(b, col, pc) {                            // 週期選單旁邊的一列：開 高 低 收 漲跌% 量
+  const v = (n, x) => `<span class="kmo"><em>${n}</em><i style="color:${col}">${x}</i></span>`;
+  return v('開', klFmt(b.open)) + v('高', klFmt(b.high)) + v('低', klFmt(b.low)) + v('收', klFmt(b.close)) + `<span class="kmo"><i style="color:${col}">${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%</i></span>` + v('量', klVol(b.vol));
+}
 function klLegend(b) {                                 // 左上角：幣種、週期、開高低收、漲跌、成交量（十字線指到哪根就顯示哪根）
   const T = klTheme(), D = KL.data; if (!b) b = D[D.length - 1]; if (!b) { $('klLg').innerHTML = ''; return; }
   const i = D.findIndex(x => x.time === b.time), prev = i > 0 ? D[i - 1].close : b.open, ch = b.close - prev, pc = prev ? ch / prev * 100 : 0, col = ksUp(b, D[i - 1]) ? KS.upBorder : KS.dnBorder;
-  { const up = ksUp(b, D[i - 1]), m = $('klMLg'); if (m) m.innerHTML = `<span style="color:${up ? KS.upBorder : KS.dnBorder}">${klFmt(b.close)}　${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%</span>`; }
-  $('klLg').innerHTML = `<b>${KL.sym.replace(/USDT$/, '')}USDT 永續</b><span class="kltfl">・${(KL_TF.find(x => x[0] === KL.tf) || [])[1] || KL.tf}・Binance</span><br>
-    <span>開<i style="color:${col}">${klFmt(b.open)}</i></span><span>高<i style="color:${col}">${klFmt(b.high)}</i></span><span>低<i style="color:${col}">${klFmt(b.low)}</i></span><span>收<i style="color:${col}">${klFmt(b.close)}</i></span><span><i style="color:${col}">${ch >= 0 ? '+' : ''}${klFmt(ch)}（${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%）</i></span><br><span>成交量<i style="color:${col}">${klVol(b.vol)}</i></span>`;
+  { const m = $('klMLg'); if (m) m.innerHTML = klOhlc(b, col, pc); }   // 開高低收放在週期選單旁邊
+  $('klLg').innerHTML = '';   // 左上角的幣種、開高低收不再顯示（已經移到週期選單旁邊）
 }
 async function klInit() {
   klUi(); KL.open = true;
@@ -977,7 +985,7 @@ function kmAlive() {                                    // 其他格的即時更
 function kmLegend(P, b) {
   const D = P.data; P.hover = !!b; if (!b) b = D[D.length - 1]; const el = P.el.querySelector('.kmlg'); if (!b) { el.textContent = ''; return; }
   const i = D.indexOf(b), prev = i > 0 ? D[i - 1].close : b.open, pc = prev ? (b.close - prev) / prev * 100 : 0, up = ksUp(b, D[i - 1]);
-  el.innerHTML = `<span style="color:${up ? KS.upBorder : KS.dnBorder}">${klFmt(b.close)}　${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%</span>`;
+  el.innerHTML = klOhlc(b, up ? KS.upBorder : KS.dnBorder, pc);
 }
 function kmLegendInd(P) { if (!P) return; kiLegendFor(P.el.querySelector('.kilg'), P.ind, 'p' + P.i); }
 function kmDrawInd(P) {                                  // 把這一格的指標畫上去（借用主圖的畫法：暫時把「目前的圖」換成這一格）
