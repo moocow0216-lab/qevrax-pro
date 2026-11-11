@@ -273,6 +273,8 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 .zbar{height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}.zbar span{display:block;height:100%}
 .zr.s .zbar span{background:#ff9b74}.zr.b .zbar span{background:#c6f26b}.zr.s em{color:#ff9b74}.zr.b em{color:#c6f26b}
 .hmz .ze{margin:2px 4px;color:var(--dim);font-size:11px}.hmz .zn{margin:4px 4px 0;color:var(--dim);font-size:10.5px}
+.hmhint{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:10px;white-space:nowrap;background:rgba(5,9,18,.92);border:1px solid rgba(201,165,90,.5);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--steel);max-width:calc(100% - 140px)}
+.hmhint button{flex:none;border:1px solid var(--gold);background:var(--gold-soft);color:var(--gold2);border-radius:5px;padding:3px 8px;font-size:12px;cursor:pointer}
 .kl{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0;position:relative}
 .kltop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.klsym{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#2a2e39);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}.klsym b{font-weight:800}
 .kltf{display:flex;gap:2px;flex-wrap:wrap}.kltf button{border:0;background:transparent;color:var(--muted);padding:6px 9px;border-radius:6px;font-size:13px;cursor:pointer}.kltf button:hover{background:rgba(127,127,127,.12)}.kltf button[aria-pressed="true"]{color:#2962ff;background:rgba(41,98,255,.12);font-weight:700}
@@ -461,7 +463,7 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
         <span class="spacer"></span>
         <button class="ibtn" id="hmFollow" hidden>回到最新</button>
       </div>
-      <div class="pbody"><div class="hmz" id="hmZones" hidden aria-label="強弱區排行"></div><canvas id="hmCv" aria-label="訂單簿熱力圖：滾輪縮放時間，在右邊價格軸上滾動縮放價格，拖曳移動，點兩下回到最新"></canvas><div class="pmsg" id="hmMsg">正在連線到幣安訂單簿…</div></div>
+      <div class="pbody"><div class="hmhint" id="hmHint" hidden></div><div class="hmz" id="hmZones" hidden aria-label="強弱區排行"></div><canvas id="hmCv" aria-label="訂單簿熱力圖：滾輪縮放時間，在右邊價格軸上滾動縮放價格，拖曳移動，點兩下回到最新"></canvas><div class="pmsg" id="hmMsg">正在連線到幣安訂單簿…</div></div>
     </section>
 
     <section class="pane" id="paneLiq" aria-label="清算地圖">
@@ -3351,6 +3353,9 @@ function hmDraw() {
       g.fillStyle = c.last >= c.o ? '#2ee6b0' : '#ff4d6a'; g.fillText(L0, tx + 8, ty + 15); g.fillStyle = '#ebe7df'; g.fillText(L1, tx + 8, ty + 30); { const pal = HM_PAL[HM.pal] || HM_PAL.qx, a = `主動買 $${fUsd(c.buy)}`; g.fillStyle = pal[1][1]; g.fillText(a, tx + 8, ty + 45); g.fillStyle = pal[2][1]; g.fillText(`　主動賣 $${fUsd(c.sell)}`, tx + 8 + g.measureText(a).width, ty + 45); } }
   }
   $('hmFollow').hidden = HM.follow && Math.abs(HM.off) < 0.5;
+  { const hint = $('hmHint'), live = HM.tf >= 60 ? cols.filter(c => !c.hist).length : 99, mins = Math.floor((HM.mins.length * 60 + (HM.raw.length ? HM.raw.length % 60 : 0)) / 60);   // 1 分、5 分：掛單資料還很短的時候，提示一下
+    const show = HM.tf >= 60 && live < 15; hint.hidden = !show;
+    if (show) { const t = `掛單熱力圖累積中：${mins} 分鐘（網頁開著才會累積）`; if (hint.dataset.t !== t) { hint.dataset.t = t; hint.innerHTML = `<span>${t}</span><button type="button" data-tf="5">先看每根 5 秒</button>`; } } }
 }
 /* 縮放、拖曳：跟左邊 K 線圖一樣
    圖上拖曳＝左右上下移動｜滾輪＝以滑鼠位置縮放時間｜觸控板左右滑＝左右移動
@@ -3406,6 +3411,7 @@ function hmBind() {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && HZ.list) { HZ.list = false; zoneList(); } });
   $('hmZones').addEventListener('click', e => { const b = e.target.closest('[data-zp]'); if (!b) return; HM.follow = false; HM.pc = +b.dataset.zp; HM.dirty = true; HZ.list = false; zoneList(); });
   $('hmZones').addEventListener('pointerdown', e => e.stopPropagation()); $('hmZones').addEventListener('wheel', e => e.stopPropagation());
+  $('hmHint').addEventListener('click', e => { const b = e.target.closest('[data-tf]'); if (!b) return; HM.tf = +b.dataset.tf; LS.set('qxHmTf', HM.tf); $('hmTf').value = String(HM.tf); HM.agg = null; HM.off = 0; HM.dirty = true; });
   $('hmMinB').onchange = e => { HM.minB = /^a/.test(e.target.value) ? e.target.value : +e.target.value; LS.set('qxHmMinB', HM.minB); HM.dirty = true; };
 }
 function hmHome() { HM.follow = true; HM.off = 0; HM.span = HM.span || (HM.last || 1) * 0.006; HM.dirty = true; }
