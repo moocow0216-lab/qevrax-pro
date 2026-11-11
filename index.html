@@ -256,6 +256,11 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 #paneCharts #klLg:empty{display:none}
 #paneCharts .xhide{opacity:0!important;pointer-events:none}
 .kddlg .kpst{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+#qxToast{position:absolute;left:50%;top:58px;transform:translateX(-50%);z-index:30;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:80%;text-align:center}
+#qxToast.ok{background:#0f3b33;color:#7ff0d6;border:1px solid #26a69a}#qxToast.err{background:#3d1416;color:#ffb3b1;border:1px solid #ef5350}
+#paneCharts{position:relative}
+#qxAsk{position:absolute;left:50%;top:58px;transform:translateX(-50%);z-index:31;background:rgba(12,14,17,.97);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;box-shadow:0 14px 40px rgba(0,0,0,.6);min-width:280px}
+#qxAsk span{color:var(--steel)}#qxAsk div{display:flex;gap:6px;margin-top:4px}#qxAsk .btn{padding:5px 10px;font-size:12.5px}
 .kl{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0;position:relative}
 .kltop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.klsym{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#2a2e39);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}.klsym b{font-weight:800}
 .kltf{display:flex;gap:2px;flex-wrap:wrap}.kltf button{border:0;background:transparent;color:var(--muted);padding:6px 9px;border-radius:6px;font-size:13px;cursor:pointer}.kltf button:hover{background:rgba(127,127,127,.12)}.kltf button[aria-pressed="true"]{color:#2962ff;background:rgba(41,98,255,.12);font-weight:700}
@@ -3478,6 +3483,9 @@ async function bxPoll() {
     for (const P of BX.pos) { P.tpsl = ts.filter(x => String(x.positionId) === P.id); const t = P.tpsl.find(x => +x.tpPrice > 0), l = P.tpsl.find(x => +x.slPrice > 0); P.tp = t ? +t.tpPrice : 0; P.sl = l ? +l.slPrice : 0; }
     BX.ord = ((o && o.orderList) || []).map(x => ({ id: String(x.orderId), sym: x.symbol, side: x.side, qty: num(x.qty), filled: num(x.tradeQty), px: num(x.price), type: x.orderType || x.type, reduce: !!x.reduceOnly, tp: num(x.tpPrice), sl: num(x.slPrice), t: num(x.ctime) }));
     if (BX.pos.length || !BX.hideIds.size) { const live = new Set(BX.pos.map(x => x.id)), n = BX.hideIds.size; for (const id of [...BX.hideIds]) if (!live.has(id)) BX.hideIds.delete(id); if (BX.hideIds.size !== n) LS.set('qxHideIds', [...BX.hideIds]); }
+    { const now = new Map(BX.pos.map(x => [x.id, x.sym])), prev = BX.prevPos;   // 有倉位平掉了：問要不要清掉圖上的部位工具
+      if (prev && BX.ok) { const gone = new Set([...prev].filter(([id]) => !now.has(id)).map(([, sym]) => sym)); for (const sym of gone) if (![...now.values()].includes(sym)) posClosed(sym); }
+      BX.prevPos = now; }
     BX.ok = true; BX.err = '';
   } catch (e) { BX.ok = false; BX.err = e.message; }
   finally { BX.busy = false; bxRender(); }
@@ -3650,7 +3658,7 @@ function qxDragBind(C) {
     const d = BX.drag, p = BX.pos.find(x => x.id === d.id); if (!p || !d.k || Math.abs(d.price - (p[d.k] || 0)) < 1e-9 || Math.abs(d.price - p.entry) / p.entry < 1e-5) { BX.drag = null; bxLines(); return; }
     const R = posPL(p, d.price);
     if (confirm(`${p[d.k] ? '把' : '幫'} ${p.sym} ${p.dir > 0 ? '多單' : '空單'}${p[d.k] ? `的${d.k === 'tp' ? '止盈' : '止損'}從 ${klFmt(p[d.k])} 改到 ${klFmt(d.price)}` : `新增${d.k === 'tp' ? '止盈' : '止損'}在 ${klFmt(d.price)}`}？\n觸發時 ${PV() ? '' : sgn(R.u) + ' U，'}保證金 ${sgn(R.roe, 1)}%`)) {
-      try { await bxSetTpsl(p, d.k === 'tp' ? d.price : p.tp, d.k === 'sl' ? d.price : p.sl); p[d.k] = d.price; ofMsg(`已改${d.k === 'tp' ? '止盈' : '止損'}到 ${klFmt(d.price)}`, 'ok'); } catch (x) { ofMsg(x.message, 'err'); }
+      try { await bxSetTpsl(p, d.k === 'tp' ? d.price : p.tp, d.k === 'sl' ? d.price : p.sl); p[d.k] = d.price; ofMsg(`已改${d.k === 'tp' ? '止盈' : '止損'}到 ${klFmt(d.price)}`, 'ok'); qxToast(`✓ ${d.k === 'tp' ? '止盈' : '止損'}已改到 ${klFmt(d.price)}`, true); } catch (x) { ofMsg(x.message, 'err'); qxToast(x.message, false); }
     }
     BX.drag = null; bxRender(); setTimeout(bxPoll, 600); };
   box.addEventListener('pointerup', end, true); box.addEventListener('pointercancel', end, true);
@@ -3658,26 +3666,62 @@ function qxDragBind(C) {
 }
 function ofDragBind() { for (const C of qxCharts()) qxDragBind(C); }
 
+
+/* ---- 平倉之後：圖上的多頭／空頭部位工具（規劃用的）可以一鍵清掉 ---- */
+const isPosTool = d => d && (d.type === 'long' || d.type === 'short');
+function posToolCount(sym) { if (sym === KL.sym) return KD.list.filter(isPosTool).length; return ((LS.get('klDraw', {})[sym]) || []).filter(isPosTool).length; }
+function posToolClear(sym) {
+  if (sym === KL.sym) { try { kdAct(null); } catch (e) {} KD.list = KD.list.filter(d => !isPosTool(d)); KD.sel = null; kdSave(); try { kdEdit(); } catch (e) {} }
+  else { const all = LS.get('klDraw', {}); const L = (all[sym] || []).filter(d => !isPosTool(d)); if (L.length) all[sym] = L; else delete all[sym]; LS.set('klDraw', all); KD.allC = null; }
+}
+function posClosed(sym) {
+  const n = posToolCount(sym); if (!n) return;
+  if (LS.get('qxAutoClrPos', false)) { posToolClear(sym); qxToast(`${sym.replace(/USDT$/, '')} 已平倉，已清除圖上的 ${n} 個部位工具`, true); return; }
+  let el = $('qxAsk'); if (!el) { el = document.createElement('div'); el.id = 'qxAsk'; el.setAttribute('role', 'alertdialog'); $('paneCharts').appendChild(el); }
+  el.innerHTML = `<b>${esc(sym.replace(/USDT$/, ''))} 已平倉</b><span>圖上還有 ${n} 個多頭／空頭部位工具，要清除嗎？</span><div><button class="btn primary" data-a="y">清除</button><button class="btn" data-a="n">保留</button><button class="btn" data-a="always">以後自動清除</button></div>`;
+  el.hidden = false;
+  el.onclick = e => { const a = e.target.closest('[data-a]'); if (!a) return; if (a.dataset.a === 'always') LS.set('qxAutoClrPos', true); if (a.dataset.a !== 'n') { posToolClear(sym); qxToast(`已清除 ${sym.replace(/USDT$/, '')} 的部位工具`, true); } el.hidden = true; };
+}
 /* ---- 進場之後改止盈止損（Bitunix 的持倉止盈止損） ---- */
 async function bxSetTpsl(p, tp, sl) {
   await bxPairs().catch(() => {});
-  const pr = BX.pairs.get(p.sym), qp = pr ? +pr.quotePrecision || 2 : 2, ref = (p.sym === QX.sym && QX.mark) || p.entry;
+  const pr = BX.pairs.get(p.sym), qp = pr ? +pr.quotePrecision || 2 : 2, ref = (p.sym === QX.sym && QX.mark) || p.entry, fx = v => (+v).toFixed(qp);
   if (tp && p.dir * (tp - ref) <= 0) throw new Error(`止盈要在現價（${klFmt(ref)}）${p.dir > 0 ? '上面' : '下面'}`);
   if (sl && p.dir * (sl - ref) >= 0) throw new Error(`止損要在現價（${klFmt(ref)}）${p.dir > 0 ? '下面' : '上面'}`);
   if (sl && p.liq && p.dir * (sl - p.liq) <= 0) throw new Error(`止損超過強平價 ${klFmt(p.liq)}，會先被強平`);
-  const old = p.tpsl || [], body = { symbol: p.sym, positionId: p.id };
-  if (tp) Object.assign(body, { tpPrice: tp.toFixed(qp), tpStopType: 'MARK_PRICE', tpOrderType: 'MARKET' });
-  if (sl) Object.assign(body, { slPrice: sl.toFixed(qp), slStopType: 'MARK_PRICE', slOrderType: 'MARKET' });
-  const cancel = o => bxReq('POST', '/api/v1/futures/tpsl/cancel_order', { symbol: p.sym, orderId: String(o.id) }).catch(() => {});
-  if ((!tp && p.tp) || (!sl && p.sl) || !old.length) {     // 有拿掉其中一個，或原本沒有：先清掉舊的再掛新的
-    for (const o of old) await cancel(o);
-    if (tp || sl) await bxReq('POST', '/api/v1/futures/tpsl/position/place_order', body);
-  } else {                                                // 兩個都還在：直接改，失敗才新掛，再把價格不一樣的舊單撤掉
-    let oid; try { oid = ((await bxReq('POST', '/api/v1/futures/tpsl/position/modify_order', body)) || {}).orderId; } catch (e) { oid = ((await bxReq('POST', '/api/v1/futures/tpsl/position/place_order', body)) || {}).orderId; }
-    // 重新讀一次：價格跟這次設定不一樣的舊單才撤掉（不會撤到剛改好的那張）
-    try { const r = await bxReq('GET', '/api/v1/futures/tpsl/get_pending_orders', { symbol: p.sym, positionId: p.id, limit: 50 }), L = Array.isArray(r) ? r : (r && (r.orderList || r.list)) || [], same = (a, b) => (!a && !b) || (a > 0 && b > 0 && Math.abs(a / b - 1) < 1e-7);
-      const keep = L.filter(o => same(+o.tpPrice || 0, tp) && same(+o.slPrice || 0, sl)); if (keep.length) for (const o of L) if (!keep.includes(o)) await cancel(o); } catch (e) {}
+  // Bitunix 有兩種止盈止損單：
+  //  1) 下單時一起帶的止盈止損＝一般的止盈止損單（有數量 tpQty／slQty），要用 /tpsl/modify_order 帶 orderId 改
+  //  2) 持倉止盈止損（沒有數量，平整個倉位），要用 /tpsl/position/modify_order 帶 positionId 改
+  const old = p.tpsl || [], hasTp = o => +o.tpPrice > 0, hasSl = o => +o.slPrice > 0, isPos = o => !(+o.tpQty > 0) && !(+o.slQty > 0);
+  const cancel = o => bxReq('POST', '/api/v1/futures/tpsl/cancel_order', { symbol: p.sym, orderId: String(o.id) });
+  let needTp = tp > 0, needSl = sl > 0;
+  for (const o of old) {
+    const keepTp = hasTp(o) && tp > 0, keepSl = hasSl(o) && sl > 0;
+    if ((hasTp(o) && !keepTp) || (hasSl(o) && !keepSl)) { await cancel(o); continue; }   // 這張單有一邊要拿掉：整張撤掉，留下的那邊後面重新掛
+    const posBody = { symbol: p.sym, positionId: p.id };
+    if (keepTp) Object.assign(posBody, { tpPrice: fx(tp), tpStopType: o.tpStopType || 'MARK_PRICE' });
+    if (keepSl) Object.assign(posBody, { slPrice: fx(sl), slStopType: o.slStopType || 'MARK_PRICE' });
+    const body = { orderId: String(o.id) };
+    if (keepTp) Object.assign(body, { tpPrice: fx(tp), tpStopType: o.tpStopType || 'MARK_PRICE', tpOrderType: 'MARKET' }, +o.tpQty > 0 ? { tpQty: String(o.tpQty) } : {});
+    if (keepSl) Object.assign(body, { slPrice: fx(sl), slStopType: o.slStopType || 'MARK_PRICE', slOrderType: 'MARKET' }, +o.slQty > 0 ? { slQty: String(o.slQty) } : {});
+    try {
+      if (isPos(o)) await bxReq('POST', '/api/v1/futures/tpsl/position/modify_order', posBody);
+      else { try { await bxReq('POST', '/api/v1/futures/tpsl/modify_order', body); } catch (e) { await bxReq('POST', '/api/v1/futures/tpsl/position/modify_order', posBody); } }
+    } catch (e) { throw new Error('修改失敗：' + e.message); }
+    if (keepTp) needTp = false; if (keepSl) needSl = false;
   }
+  if (needTp || needSl) {                                  // 還沒有的那一邊：新掛一張（數量＝整個倉位）
+    const body = { symbol: p.sym, positionId: p.id };
+    if (needTp) Object.assign(body, { tpPrice: fx(tp), tpStopType: 'MARK_PRICE', tpOrderType: 'MARKET', tpQty: String(p.qty) });
+    if (needSl) Object.assign(body, { slPrice: fx(sl), slStopType: 'MARK_PRICE', slOrderType: 'MARKET', slQty: String(p.qty) });
+    try { await bxReq('POST', '/api/v1/futures/tpsl/place_order', body); }
+    catch (e) { const pb = { symbol: p.sym, positionId: p.id }; if (needTp) Object.assign(pb, { tpPrice: fx(tp), tpStopType: 'MARK_PRICE' }); if (needSl) Object.assign(pb, { slPrice: fx(sl), slStopType: 'MARK_PRICE' });
+      try { await bxReq('POST', '/api/v1/futures/tpsl/position/place_order', pb); } catch (e2) { throw new Error('新增失敗：' + e2.message); } }
+  }
+}
+function qxToast(t, ok) {                                // K 線圖上方的提示（改止盈止損成功或失敗）
+  let el = $('qxToast'); if (!el) { el = document.createElement('div'); el.id = 'qxToast'; el.setAttribute('role', 'status'); $('paneCharts').appendChild(el); }
+  el.textContent = t; el.className = ok ? 'ok' : 'err'; el.hidden = false; clearTimeout(qxToast.t); qxToast.t = setTimeout(() => { el.hidden = true; }, ok ? 2500 : 6000);
 }
 const TP = { id: '', m: { tp: 'px', sl: 'px' }, v: { tp: 0, sl: 0 } };
 function tpOpen(id) {
@@ -3710,7 +3754,7 @@ function tpBind() {
   }
   $('tpSave').onclick = async () => { const p = BX.pos.find(x => x.id === TP.id); if (!p) return; const X = tpPlan(p), m = $('tpMsg');
     m.className = 'ofmsg'; m.textContent = '送出中…';
-    try { await bxSetTpsl(p, X.tp, X.sl); p.tp = X.tp; p.sl = X.sl; $('tpDlg').close(); ofMsg('止盈止損已更新', 'ok'); bxRender(); setTimeout(bxPoll, 600); }
+    try { await bxSetTpsl(p, X.tp, X.sl); p.tp = X.tp; p.sl = X.sl; $('tpDlg').close(); ofMsg('止盈止損已更新', 'ok'); qxToast('✓ 止盈止損已更新', true); bxRender(); setTimeout(bxPoll, 600); }
     catch (e) { m.className = 'ofmsg err'; m.textContent = e.message; } };
 }
 
