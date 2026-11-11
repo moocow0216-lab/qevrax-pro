@@ -252,6 +252,8 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 #paneCharts .kmlg{flex:1;min-width:0;display:flex;gap:10px;white-space:nowrap;overflow:hidden;font-size:12px;font-variant-numeric:tabular-nums;mask-image:linear-gradient(90deg,#000 92%,transparent)}
 #paneCharts .kmo{display:inline-flex;gap:3px}#paneCharts .kmo em{font-style:normal;color:var(--dim)}#paneCharts .kmo i{font-style:normal}
 #paneCharts #klLg:empty{display:none}
+#paneCharts .xhide{opacity:0!important;pointer-events:none}
+.kddlg .kpst{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 .kl{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0;position:relative}
 .kltop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.klsym{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#2a2e39);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}.klsym b{font-weight:800}
 .kltf{display:flex;gap:2px;flex-wrap:wrap}.kltf button{border:0;background:transparent;color:var(--muted);padding:6px 9px;border-radius:6px;font-size:13px;cursor:pointer}.kltf button:hover{background:rgba(127,127,127,.12)}.kltf button[aria-pressed="true"]{color:#2962ff;background:rgba(41,98,255,.12);font-weight:700}
@@ -1168,17 +1170,7 @@ function kdShape(g, d, sel, W, H) {
   else if (T === 'brush') { if (P.length > 1) { g.lineJoin = g.lineCap = 'round'; g.beginPath(); P.forEach((q, i) => i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)); g.stroke(); } }
   else if (T === 'text') { const X = kdTx(d); g.font = `${X.i ? 'italic ' : ''}${X.b || !d.tx ? 'bold ' : ''}${d.tx ? X.s : 12 + lw * 2}px sans-serif`; g.fillStyle = c; String(d.text || '文字').split('\n').forEach((ln, i) => g.fillText(ln, a.x, a.y + i * ((d.tx ? X.s : 16) + 3))); }
   else if (T === 'emoji') { g.font = `${20 + lw * 6}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(d.text || '🚀', a.x, a.y); g.textAlign = 'left'; g.textBaseline = 'alphabetic'; }
-  else if (T === 'long' || T === 'short') {                    // 部位工具：進場、止盈（綠）、止損（紅）、盈虧比
-    const e = d.pts[0], tp = d.pts[1], sl = d.pts[2], ye = a.y, yt = kdY(tp.p), ys = kdY(sl.p), xr = kdX(d.pts[3] ? d.pts[3].t : e.t);
-    if (yt == null || ys == null || xr == null) return; const x0 = Math.min(a.x, xr), wd = Math.abs(xr - a.x) || 120;
-    g.globalAlpha = 0.22; g.fillStyle = '#089981'; g.fillRect(x0, Math.min(ye, yt), wd, Math.abs(yt - ye)); g.fillStyle = '#f23645'; g.fillRect(x0, Math.min(ye, ys), wd, Math.abs(ys - ye)); g.globalAlpha = 1;
-    g.strokeStyle = '#787b86'; g.lineWidth = 1; line({ x: x0, y: ye }, { x: x0 + wd, y: ye });
-    const rw = Math.abs(tp.p - e.p), rs = Math.abs(e.p - sl.p), rr = rs ? (rw / rs).toFixed(2) : '—';
-    lab(`止盈 ${klFmt(tp.p)}（${((tp.p / e.p - 1) * 100 * (T === 'long' ? 1 : -1)).toFixed(2)}%）`, x0 + 4, yt + (T === 'long' ? 12 : -12), '#089981');
-    lab(`止損 ${klFmt(sl.p)}（${((sl.p / e.p - 1) * 100 * (T === 'long' ? 1 : -1)).toFixed(2)}%）`, x0 + 4, ys + (T === 'long' ? -12 : 12), '#f23645');
-    lab(`${T === 'long' ? '多' : '空'} ${klFmt(e.p)}・盈虧比 ${rr}`, x0 + 4, ye + (T === 'long' ? -14 : 14), '#2a2e39');
-    kdExtras(g, d, P, sel, c); if (sel) for (const q of [{ x: x0 + wd / 2, y: yt }, { x: x0 + wd / 2, y: ys }, { x: x0 + wd, y: ye }, { x: a.x, y: ye }]) kdHandle(g, q); return;
-  }
+  else if (T === 'long' || T === 'short') { if (kdPosDraw(g, d, a, sel)) kdExtras(g, d, P, sel, c); return; }   // 部位工具：畫法在 kdPosDraw
   else if (T === 'prange' || T === 'drange' || T === 'ruler') {   // 價格範圍／日期範圍／測量
     const p0 = d.pts[0].p, p1 = (d.pts[1] || d.pts[0]).p, up = p1 >= p0, col = T === 'ruler' ? (up ? '#2962ff' : '#f23645') : c;
     g.globalAlpha = 0.15; g.fillStyle = col; g.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); g.globalAlpha = 1; g.strokeStyle = col;
@@ -1191,12 +1183,86 @@ function kdShape(g, d, sel, W, H) {
   if (sel) P.forEach(q => kdHandle(g, q));
 }
 function kdHandle(g, q) { g.save(); g.setLineDash([]); g.fillStyle = '#fff'; g.strokeStyle = '#2962ff'; g.lineWidth = 2; g.beginPath(); g.arc(q.x, q.y, 5, 0, 7); g.fill(); g.stroke(); g.restore(); }
+
+/* ---- 📈📉 多頭／空頭部位：可以拉止盈、止損，統計數據跟 TradingView 一樣可以自己選 ---- */
+const KD_POS_ST = [['tpOff', 'TP 價格偏移'], ['tpPct', 'TP 偏移百分比'], ['tpTick', 'TP tick 偏移'], ['tpAmt', 'TP 金額'], ['tpPL', 'TP 佔帳戶 %'], ['pnl', '未實現損益／已實現損益'], ['qty', '數量'], ['rr', '風險／報酬比'], ['slOff', 'SL 價格偏移'], ['slPct', 'SL 偏移百分比'], ['slTick', 'SL tick 偏移'], ['slAmt', 'SL 金額'], ['slPL', 'SL 佔帳戶 %']];
+const KD_POS_DEF = ['tpOff', 'tpPct', 'tpTick', 'tpAmt', 'pnl', 'qty', 'rr', 'slOff', 'slPct', 'slTick', 'slAmt'];
+function kdPosCalc(d) {
+  const s = d.type === 'long' ? 1 : -1, e = d.pts[0].p, tp = d.pts[1].p, sl = d.pts[2].p, acct = +d.acct > 0 ? +d.acct : 1000, rv = +d.riskV > 0 ? +d.riskV : 1, risk = d.riskU === 'U' ? rv : acct * rv / 100;
+  const dec = (String(klFmt(e)).split('.')[1] || '').length, tick = Math.pow(10, -dec), qd = d.qtyD != null && d.qtyD !== '' ? +d.qtyD : 4;
+  const qty = Math.abs(e - sl) > 0 ? Math.floor(risk / Math.abs(e - sl) * 10 ** qd) / 10 ** qd : 0;
+  const R = { s, e, tp, sl, acct, risk, tick, qty, tpOff: Math.abs(tp - e), slOff: Math.abs(e - sl), tpPct: Math.abs(tp / e - 1) * 100, slPct: Math.abs(sl / e - 1) * 100 };
+  R.tpTick = R.tpOff / tick; R.slTick = R.slOff / tick; R.tpAmt = qty * R.tpOff; R.slAmt = qty * R.slOff; R.rr = R.slOff ? R.tpOff / R.slOff : 0;
+  // 損益：從進場那根開始往後看，先碰到止盈或止損＝已實現；都還沒碰到＝用最新價算未實現
+  const D = (KD.act && KD.act.data) || KL.data || [], t0 = d.pts[0].t, t1 = d.pts[3] ? Math.max(d.pts[3].t, t0) : Infinity; R.state = 'wait'; R.pnl = 0; R.last = 0;
+  for (const b of D) { if (b.time < t0) continue; if (b.time > t1) break;
+    if (R.state === 'wait') { if (b.low <= e && b.high >= e) R.state = 'open'; else continue; }
+    const hitTp = s > 0 ? b.high >= tp : b.low <= tp, hitSl = s > 0 ? b.low <= sl : b.high >= sl;
+    if (hitSl) { R.state = 'sl'; R.pnl = -R.slAmt; break; } if (hitTp) { R.state = 'tp'; R.pnl = R.tpAmt; break; }
+    R.last = b.close; R.pnl = s * (b.close - e) * qty; }
+  return R;
+}
+function kdPosDraw(g, d, a, sel) {
+  const T = d.type, s = T === 'long' ? 1 : -1, e = d.pts[0], tp = d.pts[1], sl = d.pts[2], ye = a.y, yt = kdY(tp.p), ys = kdY(sl.p), xr = kdX(d.pts[3] ? d.pts[3].t : e.t);
+  if (yt == null || ys == null || xr == null) return false;
+  const x0 = Math.min(a.x, xr), wd = Math.abs(xr - a.x) || 120, tpC = d.tpC || '#089981', slC = d.slC || '#f23645', lnC = d.lineC || '#787b86', fs = +d.txS || 12, txC = d.txC || '#ffffff', C = kdPosCalc(d);
+  g.save(); g.setLineDash([]);
+  g.globalAlpha = 0.2; g.fillStyle = tpC; g.fillRect(x0, Math.min(ye, yt), wd, Math.abs(yt - ye)); g.fillStyle = slC; g.fillRect(x0, Math.min(ye, ys), wd, Math.abs(ys - ye)); g.globalAlpha = 1;
+  if (C.state === 'open' && C.last) { const yl = kdY(C.last); if (yl != null) { g.globalAlpha = 0.3; g.fillStyle = C.pnl >= 0 ? tpC : slC; g.fillRect(x0, Math.min(ye, yl), wd, Math.abs(yl - ye)); g.globalAlpha = 1; } }   // 目前價格到進場價這段，顏色深一點
+  g.strokeStyle = lnC; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, ye); g.lineTo(x0 + wd, ye); g.stroke();
+  g.lineWidth = 2; g.strokeStyle = tpC; g.beginPath(); g.moveTo(x0, yt); g.lineTo(x0 + wd, yt); g.stroke(); g.strokeStyle = slC; g.beginPath(); g.moveTo(x0, ys); g.lineTo(x0 + wd, ys); g.stroke();
+  const m = KD.mouse, hov = m && m.x >= x0 && m.x <= x0 + wd && m.y >= Math.min(ye, yt, ys) - 6 && m.y <= Math.max(ye, yt, ys) + 6;
+  const dec = (String(klFmt(C.e)).split('.')[1] || '').length, fo = v => v.toFixed(dec), on = k2 => (d.posSt || KD_POS_DEF).includes(k2), cmp = d.statCmp !== false, f = v => klFmt(v), sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2), n0 = v => Math.round(v).toLocaleString('en-US');
+  let tpL, slL, mid;
+  if (sel || hov || d.statAlw) {
+    const side = (pfx, off, pct, tk, amt, pl, nm) => { const P1 = []; if (on(pfx + 'Off')) P1.push(fo(off)); if (on(pfx + 'Pct')) P1.push(`(${pct.toFixed(2)}%)`); if (on(pfx + 'Tick')) P1.push(n0(tk));
+      const extra = []; if (on(pfx + 'Amt')) extra.push(`金額：${amt.toFixed(2)}`); if (on(pfx + 'PL')) extra.push(`帳戶 ${pl}%`);
+      if (cmp) return [`${nm}：${P1.join(' ')}${P1.length && extra.length ? '，' : ''}${extra.join('，')}`];
+      const L2 = [`${nm}：${f(pfx === 'tp' ? C.tp : C.sl)}`]; if (on(pfx + 'Off')) L2.push(`價格偏移：${fo(off)}`); if (on(pfx + 'Pct')) L2.push(`偏移：${pct.toFixed(2)}%`); if (on(pfx + 'Tick')) L2.push(`Ticks：${n0(tk)}`); return L2.concat(extra); };
+    tpL = side('tp', C.tpOff, C.tpPct, C.tpTick, C.tpAmt, (C.tpAmt / C.acct * 100).toFixed(2), '目標');
+    slL = side('sl', C.slOff, C.slPct, C.slTick, C.slAmt, (-C.slAmt / C.acct * 100).toFixed(2), '停損');
+    const M = []; if (on('pnl')) M.push(`${C.state === 'tp' || C.state === 'sl' ? '已實現' : C.state === 'open' ? '未實現' : '尚未進場・'}損益：${sgn(C.pnl)}`); if (on('qty')) M.push(`數量：${C.qty}`); if (on('rr')) M.push(`風險報酬比：${C.rr.toFixed(2)}`);
+    mid = M.length ? (cmp ? [M.join('，')] : M) : [];
+  } else {
+    tpL = [`止盈 ${f(C.tp)}（${(s * (C.tp / C.e - 1) * 100).toFixed(2)}%）`]; slL = [`止損 ${f(C.sl)}（${(s * (C.sl / C.e - 1) * 100).toFixed(2)}%）`]; mid = [`${s > 0 ? '多' : '空'} ${f(C.e)}・盈虧比 ${C.rr.toFixed(2)}`];
+  }
+  const box = (L, y, where, bg) => { if (!L || !L.length) return; g.font = `${fs}px "IBM Plex Sans","Noto Sans TC",sans-serif`; const lh = fs + 5, w = Math.max(...L.map(t => g.measureText(t).width)) + 14, h = L.length * lh + 6;
+    const cx = x0 + wd / 2, bx = cx - w / 2, by = where === 'up' ? y - h - 4 : where === 'down' ? y + 4 : y - h / 2;
+    g.fillStyle = bg; g.beginPath(); if (g.roundRect) g.roundRect(bx, by, w, h, 4); else g.rect(bx, by, w, h); g.fill(); g.fillStyle = txC; g.textAlign = 'center'; L.forEach((t, i) => g.fillText(t, cx, by + 3 + lh * (i + 1) - 5)); g.textAlign = 'left'; };
+  box(tpL, yt, yt < ye ? 'up' : 'down', tpC); box(slL, ys, ys < ye ? 'up' : 'down', slC);
+  box(mid, ye, 'mid', C.state === 'wait' ? '#2a2e39' : (C.state === 'tp' || (C.state === 'open' && C.pnl >= 0)) ? tpC : slC);
+  if (d.plab !== false) { g.font = '11px "IBM Plex Sans",sans-serif'; for (const [p, y, col] of [[C.tp, yt, tpC], [C.e, ye, '#2a2e39'], [C.sl, ys, slC]]) { const t = f(p), w = g.measureText(t).width + 10; g.fillStyle = col; g.fillRect(x0 + wd + 3, y - 9, w, 18); g.fillStyle = '#fff'; g.fillText(t, x0 + wd + 8, y + 4); } }
+  g.restore();
+  if (sel) for (const q of [{ x: x0 + wd / 2, y: yt }, { x: x0 + wd / 2, y: ys }, { x: x0 + wd, y: ye }, { x: a.x, y: ye }]) kdHandle(g, q);
+  return true;
+}
+function kdPosSum(d) { const el = $('kdPosSum'); if (!el || !(d.type === 'long' || d.type === 'short')) return; const C = kdPosCalc(d); el.textContent = `數量 ${C.qty}・止盈金額 ${C.tpAmt.toFixed(2)}・止損金額 ${C.slAmt.toFixed(2)}・風險報酬比 ${C.rr.toFixed(2)}`; }
+function kdPosTab(d, tab, chk, sel) {
+  if (tab === 'in') { const C = kdPosCalc(d), num = (k2, v, ph, step) => `<input type="number" step="${step || 'any'}" data-kp="${k2}" value="${esc(v)}" placeholder="${ph || ''}" style="width:120px">`;
+    return `<h4>部位大小</h4><div class="ksfield"><span>帳戶規模</span>${num('acct', d.acct || 1000, '1000')}<span class="kshint">USDT</span></div>
+      <div class="ksfield"><span>風險</span>${num('riskV', d.riskV || 1, '1')}${sel('riskU', d.riskU || '%', [['%', '% 帳戶'], ['U', 'USDT']], '風險單位')}</div>
+      <div class="ksfield"><span>數量小數位</span>${sel('qtyD', d.qtyD != null ? d.qtyD : 4, [0, 1, 2, 3, 4, 5, 6].map(v => [v, v]), '數量小數位')}</div>
+      <h4>價格</h4>${[['進場價', 0], ['止盈價', 1], ['止損價', 2]].map(([n, i]) => `<div class="ksfield"><span>${n}</span><input type="number" step="any" data-kpco="${i}" data-f="p" value="${klFmt(d.pts[i].p).replace(/,/g, '')}" style="width:140px"></div>`).join('')}
+      <div class="ksfield"><span>用盈虧比設止盈</span><input type="number" step="0.1" min="0" data-kprr="1" placeholder="例如 2" style="width:120px"></div>
+      <p class="kshint" id="kdPosSum">數量 ${C.qty}・止盈金額 ${C.tpAmt.toFixed(2)}・止損金額 ${C.slAmt.toFixed(2)}・風險報酬比 ${C.rr.toFixed(2)}</p>
+      <p class="kshint">也可以直接在圖上拖：綠色上緣＝止盈、紅色下緣＝止損、右邊緣＝長度、中間＝整個移動。</p>`; }
+  const col = (k2, v, n) => `<div class="ksfield"><span>${n}</span><span class="kscol" style="--c:${esc(v)}"><input type="color" data-kp="${k2}" value="${ksHex(v) || v}" aria-label="${n}"></span></div>`;
+  const S = d.posSt || KD_POS_DEF;
+  return col('lineC', d.lineC || '#787b86', '線條') + col('slC', d.slC || '#f23645', '停損顏色') + col('tpC', d.tpC || '#089981', '目標顏色')
+    + `<div class="ksfield"><span>文字</span><span class="kscol" style="--c:${esc(d.txC || '#ffffff')}"><input type="color" data-kp="txC" value="${ksHex(d.txC) || '#ffffff'}" aria-label="文字顏色"></span>${sel('txS', d.txS || 12, [10, 11, 12, 13, 14, 16, 18, 20].map(v => [v, v]), '文字大小')}</div>`
+    + chk('plab', '價格標籤', d.plab !== false)
+    + `<h4>資訊</h4><p class="kshint">統計數據（勾選要顯示的項目）</p><div class="kpst">${KD_POS_ST.map(([k2, n]) => `<label class="ksrow"><input type="checkbox" data-kpst="${k2}"${S.includes(k2) ? ' checked' : ''}><span>${n}</span></label>`).join('')}</div>`
+    + chk('statCmp', '精簡統計模式', d.statCmp !== false) + chk('statAlw', '始終顯示統計數據（不選取、滑鼠沒移上去也顯示）', d.statAlw);
+}
 /* ---- 點選、拖曳 ---- */
 const kdDist = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy; let t = L ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)); };
 function kdHit(m) {                                     // 滑鼠點到哪一個繪圖（回傳 [繪圖, 第幾個點 或 -1＝整個]）
   if (KD.hide || KD.lock) return null;
   for (let i = KD.list.length - 1; i >= 0; i--) {
     const d = KD.list[i], P = d.pts.map(q => ({ x: kdX(q.t), y: kdY(q.p) })); if (P.some(q => q.x == null || q.y == null)) continue;
+    if ((d.type === 'long' || d.type === 'short') && P[3]) { const xr = P[3].x, xa = Math.min(P[0].x, xr) - 4, xb = Math.max(P[0].x, xr) + 4;   // 部位：止盈線、止損線、右邊緣直接拖
+      if (m.x >= xa && m.x <= xb) { if (Math.abs(m.y - P[1].y) <= 6) return [d, 1]; if (Math.abs(m.y - P[2].y) <= 6) return [d, 2]; }
+      if (Math.abs(m.x - xr) <= 6 && m.y >= Math.min(P[1].y, P[2].y) && m.y <= Math.max(P[1].y, P[2].y)) return [d, 3]; }
     if (d === KD.sel) { const hp = d.type === 'long' || d.type === 'short' ? [P[1] && { x: (P[0].x + kdX(d.pts[3].t)) / 2, y: P[1].y }, P[2] && { x: (P[0].x + kdX(d.pts[3].t)) / 2, y: P[2].y }, { x: kdX(d.pts[3].t), y: P[0].y }, P[0]] : P; const j = hp.findIndex(q => q && Math.hypot(q.x - m.x, q.y - m.y) < 9); if (j >= 0) return [d, d.type === 'long' || d.type === 'short' ? [1, 2, 3, 0][j] : j]; }
     const a = P[0], b = P[1] || P[0], T = d.type; let hit = false;
     if (['trend', 'arrow', 'ray', 'ext'].includes(T)) hit = kdDist(m, a, b) < 6;
@@ -1384,7 +1450,7 @@ function kdLine(g, d, P, W, H, lw) {                     // 線條類：延伸�
 /* ---- 屬性視窗 ---- */
 const KDP = { d: null, tab: 'st', saved: '' };
 function kdProps(d) {
-  if (!d) return; KDP.d = d; KDP.tab = 'st'; KDP.saved = JSON.stringify(d);
+  if (!d) return; KDP.d = d; KDP.tab = d.type === 'long' || d.type === 'short' ? 'in' : 'st'; KDP.saved = JSON.stringify(d);
   let dl = $('kdDlg'); if (!dl) { dl = document.createElement('dialog'); dl.id = 'kdDlg'; dl.className = 'kldlg kddlg'; dl.setAttribute('aria-labelledby', 'kdDlgT'); document.body.appendChild(dl);
     dl.addEventListener('cancel', e => { e.preventDefault(); kdPropsCancel(); }); dl.addEventListener('input', kdPropsIn); dl.addEventListener('change', kdPropsIn);
     dl.addEventListener('click', e => { const b = e.target.closest('[data-kpt],[data-kpa],[data-kp-emo]'); if (!b) return; if (b.dataset.kpt) { KDP.tab = b.dataset.kpt; return kdPropsDraw(); }
@@ -1398,9 +1464,10 @@ function kdPropsDraw() {
   const sel = (k, cur, opts, lab) => `<select data-kp="${k}" aria-label="${lab}">${opts.map(([v, n]) => `<option value="${v}"${String(cur) === String(v) ? ' selected' : ''}>${n}</option>`).join('')}</select>`;
   const chk = (k, n, v) => `<label class="ksrow"><input type="checkbox" data-kp="${k}"${v ? ' checked' : ''}><span>${n}</span></label>`;
   const lst = d.lineSt != null ? d.lineSt : d.dash ? 2 : 0;
-  const tabs = [['st', '樣式'], ['tx', '文字'], ['co', '坐標'], ['vi', '可見性']].filter(([k]) => k !== 'tx' || !['emoji'].includes(T));
+  const tabs = T === 'long' || T === 'short' ? [['in', '輸入'], ['st', '樣式'], ['co', '坐標'], ['vi', '可見性']] : [['st', '樣式'], ['tx', '文字'], ['co', '坐標'], ['vi', '可見性']].filter(([k]) => k !== 'tx' || !['emoji'].includes(T));
   let body = '';
-  if (KDP.tab === 'st') {
+  if ((T === 'long' || T === 'short') && (KDP.tab === 'st' || KDP.tab === 'in')) body = kdPosTab(d, KDP.tab, chk, sel);
+  else if (KDP.tab === 'st') {
     body = `<div class="ksfield"><span>${T === 'text' ? '文字顏色' : '線形圖'}</span><span class="kscol" style="--c:${esc(d.color || KD.color)}"><input type="color" data-kp="color" value="${ksHex(d.color) || '#2962ff'}" aria-label="顏色"></span>
       ${T !== 'text' && T !== 'emoji' ? sel('lineSt', lst, [[0, '實線 ───'], [1, '點線 ·····'], [2, '虛線 - - -']], '線條樣式') + sel('width', d.width || 2, [[1, '1px'], [2, '2px'], [3, '3px'], [4, '4px']], '粗細') : ''}
       ${lineish && !['hline', 'hray', 'vline', 'channel'].includes(T) ? `<button class="kpend${d.endS === 'arrow' ? ' on' : ''}" data-kpa="es" title="起點樣式" aria-label="起點箭頭">${d.endS === 'arrow' ? '◀─' : '○─'}</button><button class="kpend${(d.endE || (T === 'arrow' ? 'arrow' : '')) === 'arrow' ? ' on' : ''}" data-kpa="ee" title="終點樣式" aria-label="終點箭頭">${(d.endE || (T === 'arrow' ? 'arrow' : '')) === 'arrow' ? '─▶' : '─○'}</button>` : ''}</div>
@@ -1426,7 +1493,7 @@ function kdPropsDraw() {
     <div class="ksmain kimain" role="tabpanel">${body}</div>
     <div class="ksfoot"><select id="kdTplSel" aria-label="範本">${kdTplOpts(d.type)}</select><span class="spacer"></span><button class="btn" data-kpa="cancel">取消</button><button class="btn ksok" data-kpa="ok">確認</button></div>`;
 }
-const KD_STYLEK = ['color', 'width', 'lineSt', 'dash', 'ext', 'endS', 'endE', 'mid', 'plab', 'stats', 'statPos', 'statAlw', 'tx', 'vis'];
+const KD_STYLEK = ['color', 'width', 'lineSt', 'dash', 'ext', 'endS', 'endE', 'mid', 'plab', 'stats', 'statPos', 'statAlw', 'tx', 'vis', 'tpC', 'slC', 'lineC', 'txC', 'txS', 'posSt', 'statCmp', 'acct', 'riskV', 'riskU', 'qtyD'];
 function kdStyleOf(d, withText) { const o = {}; for (const k of KD_STYLEK) if (d[k] != null && k !== 'vis') o[k] = JSON.parse(JSON.stringify(d[k])); if (o.tx && !withText) o.tx = { ...o.tx, txt: '' }; if (withText && (d.type === 'text' || d.type === 'emoji') && d.text) o.text = d.text; return o; }   // withText：「我的範本」連線上的文字一起存
 function kdRemember(d) { if (!d || !KD_TOOLS[d.type] || d.type === 'ruler' || d.type === 'zoom') return; const all = LS.get('kdLast', {}); all[d.type] = kdStyleOf(d); LS.set('kdLast', all); }   // 記住這種工具最後用的樣式
 function kdTplApply(d, st) { const txt = d.tx && d.tx.txt, hasTxt = !!(st.tx && st.tx.txt); for (const k of KD_STYLEK) if (k !== 'vis') delete d[k]; d.color = d.type === 'fib' ? '#787b86' : KD.color; d.width = 2; Object.assign(d, JSON.parse(JSON.stringify(st))); if (txt && !hasTxt) d.tx = { ...(d.tx || {}), txt }; kdRemember(d); }
@@ -1457,12 +1524,15 @@ function kdPropsIn(e) {
     if (v === 'reset') { for (const k of KD_STYLEK) if (k !== 'tx') delete d[k]; d.color = d.type === 'fib' ? '#787b86' : KD.color; d.width = 2; }
     kdPropsDraw(); return; }
   if (t.dataset.kpEmo != null) return;
+  if (t.dataset.kpst) { const S = new Set(d.posSt || KD_POS_DEF); if (t.checked) S.add(t.dataset.kpst); else S.delete(t.dataset.kpst); d.posSt = KD_POS_ST.map(x => x[0]).filter(x => S.has(x)); return; }
+  if (t.dataset.kprr) { const r = +t.value; if (r > 0 && e.type === 'change') { const s = d.type === 'long' ? 1 : -1, en = d.pts[0].p, risk = Math.abs(en - d.pts[2].p); if (risk) { d.pts[1].p = en + s * r * risk; kdPropsDraw(); } } return; }
   if (t.dataset.kpvis) { d.vis = { min: true, hour: true, day: true, week: true, ...(d.vis || {}) }; d.vis[t.dataset.kpvis] = t.checked; return; }
-  if (t.dataset.kpco != null) { const q = d.pts[+t.dataset.kpco]; if (t.dataset.f === 'p') { const v = +t.value; if (t.value !== '' && isFinite(v) && v > 0) q.p = v; } else if (e.type === 'change') { const v = kdTzParse(t.value); if (v) q.t = v; else t.value = ksTime(q.t); } return; }
+  if (t.dataset.kpco != null) { const q = d.pts[+t.dataset.kpco]; if (t.dataset.f === 'p') { const v = +t.value; if (t.value !== '' && isFinite(v) && v > 0) q.p = v; kdPosSum(d); } else if (e.type === 'change') { const v = kdTzParse(t.value); if (v) q.t = v; else t.value = ksTime(q.t); } return; }
   const k = t.dataset.kp; if (!k) return; let v = t.type === 'checkbox' ? t.checked : t.value;
-  if (['width', 'lineSt', 'tx.s'].includes(k)) v = +v;
+  if (['width', 'lineSt', 'tx.s', 'txS', 'qtyD', 'acct', 'riskV'].includes(k)) v = +v;
   if (k.startsWith('tx.')) { d.tx = kdTx(d); d.tx[k.slice(3)] = v; } else d[k] = v;
   if (k === 'lineSt') d.dash = false;
+  if (['acct', 'riskV', 'riskU', 'qtyD'].includes(k)) kdPosSum(d);
   if (t.type === 'color') t.parentElement.style.setProperty('--c', t.value);
 }
 function kdPropsCancel() { const d = KDP.d, o = JSON.parse(KDP.saved); if (d) { for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); } $('kdDlg').close(); kdEdit(); }
@@ -3874,9 +3944,15 @@ function viewBind() {
 /* ---------- 十字線連動：滑鼠指到哪個時間、價格，另一張 K 線圖、熱力圖、清算地圖一起跟著指 ---------- */
 const XH = { on: false, bound: new WeakSet() };
 function xhBarTime(D, t) { let lo = 0, hi = D.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (D[m].time <= t) { r = m; lo = m + 1; } else hi = m - 1; } return r >= 0 ? D[r].time : null; }   // 另一張圖可能是別的週期：找包含這個時間的那一根
+function xhTag(C, y) {
+  const tag = C.id === 'm' ? $('klTag') : C.el.querySelector('.kmtag'); if (!tag) return;
+  if (y == null) { tag.classList.remove('xhide'); return; }
+  const t = parseFloat(tag.style.top) || 0, h = tag.offsetHeight || 22; tag.classList.toggle('xhide', y >= t - 11 && y <= t + h + 11);
+}
 function xhBind() {
   for (const C of qxCharts()) {
     if (XH.bound.has(C.ch)) continue; XH.bound.add(C.ch);
+    C.ch.subscribeCrosshairMove(p => xhTag(C, p && p.point ? p.point.y : null));   // 十字線的價格碰到最新價標籤時，先把最新價標籤藏起來
     C.ch.subscribeCrosshairMove(p => {
       if (p && p.point && !p.sourceEvent) return;          // 是我們自己設的十字線，不要再傳出去
       const all = qxCharts();
