@@ -3380,7 +3380,7 @@ function lqDraw() {
     const t = `當前價格 ${klFmt(px)}`; g.font = '600 ' + FONT; const tw = g.measureText(t).width; g.fillStyle = '#ebe7df'; g.textAlign = 'center'; g.fillText(t, clamp(xp, M.l + tw / 2, M.l + pw - tw / 2), M.t - 7); g.textAlign = 'left'; g.font = FONT; }
   // 止盈、止損、進場、持倉的位置
   { const mk = [], P = ofPlan();
-    if (OF.show && P.E) { mk.push([P.E, '#9aa0a8', OF.type === 'LIMIT' ? '限價進場' : '進場']); if (P.tp && !P.tpBad) mk.push([P.tp, '#26a69a', `止盈 ${sgn(P.tpRoe, 0)}%`]); if (P.sl && !P.slBad) mk.push([P.sl, '#ef5350', `止損 ${sgn(P.slRoe, 0)}%`]); }
+    if (OF.show && P.E && (P.tp || P.sl || OF.type === 'LIMIT' || CO.step)) { mk.push([P.E, '#9aa0a8', OF.type === 'LIMIT' ? '限價進場' : '進場']); if (P.tp && !P.tpBad) mk.push([P.tp, '#26a69a', `止盈 ${sgn(P.tpRoe, 0)}%`]); if (P.sl && !P.slBad) mk.push([P.sl, '#ef5350', `止損 ${sgn(P.slRoe, 0)}%`]); }
     for (const p of BX.pos) if (p.sym === QX.sym) { mk.push([p.entry, '#c9a55a', '持倉']); if (p.tp) mk.push([p.tp, '#26a69a', '持倉止盈']); if (p.sl) mk.push([p.sl, '#ef5350', '持倉止損']); if (p.liq) mk.push([p.liq, '#ff9800', '強平']); }
     mk.sort((a, b) => a[0] - b[0]); const rows = []; let row = 0; g.font = FONT;
     for (const [p, c, t] of mk) { const x = xOf(p); if (x < M.l || x > M.l + pw) continue;
@@ -3466,7 +3466,9 @@ async function bxPoll() {
     const [a, p, o] = await Promise.all([bxReq('GET', '/api/v1/futures/account', { marginCoin: 'USDT' }), bxReq('GET', '/api/v1/futures/position/get_pending_positions', {}), bxReq('GET', '/api/v1/futures/trade/get_pending_orders', { limit: 100 })]);
     const A = Array.isArray(a) ? a[0] : a; BX.acct = A ? { avail: num(A.available), margin: num(A.margin), upnl: num(A.crossUnrealizedPNL) + num(A.isolationUnrealizedPNL) } : null;
     BX.pos = (Array.isArray(p) ? p : []).map(x => ({ id: String(x.positionId), sym: x.symbol, dir: sideDir(x.side), qty: num(x.qty), lev: num(x.leverage), mode: x.marginMode, entry: num(x.avgOpenPrice), margin: num(x.margin), upnl: num(x.unrealizedPNL), liq: num(x.liqPrice), pmode: x.positionMode }));
-    let ts = []; try { const r = await bxReq('GET', '/api/v1/futures/tpsl/get_pending_orders', { limit: 100 }); ts = Array.isArray(r) ? r : (r && (r.orderList || r.list)) || []; } catch (e) {}
+    let ts = []; const arr = r => Array.isArray(r) ? r : (r && (r.orderList || r.list || r.data)) || [];
+    try { ts = arr(await bxReq('GET', '/api/v1/futures/tpsl/get_pending_orders', { limit: 100 })); } catch (e) {}
+    for (const sym of new Set(BX.pos.map(x => x.sym))) if (!ts.some(x => x.symbol === sym)) { try { ts = ts.concat(arr(await bxReq('GET', '/api/v1/futures/tpsl/get_pending_orders', { symbol: sym, limit: 100 }))); } catch (e) {} }
     for (const P of BX.pos) { P.tpsl = ts.filter(x => String(x.positionId) === P.id); const t = P.tpsl.find(x => +x.tpPrice > 0), l = P.tpsl.find(x => +x.slPrice > 0); P.tp = t ? +t.tpPrice : 0; P.sl = l ? +l.slPrice : 0; }
     BX.ord = ((o && o.orderList) || []).map(x => ({ id: String(x.orderId), sym: x.symbol, side: x.side, qty: num(x.qty), filled: num(x.tradeQty), px: num(x.price), type: x.orderType || x.type, reduce: !!x.reduceOnly, tp: num(x.tpPrice), sl: num(x.slPrice), t: num(x.ctime) }));
     BX.ok = true; BX.err = '';
@@ -3597,7 +3599,7 @@ function ofCalc() {
 /* 兩張圖上的預覽線：進場（灰）、止盈（綠）、止損（紅），可以直接拖曳；持倉的止盈止損線也可以拖 */
 function ofLines(P) {
   P = P || ofPlan(); const L = [];
-  if (OF.show && P.E > 0) {
+  if (OF.show && P.E > 0 && (P.tp || P.sl || OF.type === 'LIMIT' || CO.step)) {
     const lab = k => `${k === 'tp' ? '止盈' : '止損'} ${P[k + 'U'] == null ? '' : sgn(P[k + 'U']) + 'U '}${sgn(P[k + 'Roe'], 1)}%`;
     L.push({ id: 'e', price: P.E, color: '#9aa0a8', style: 2, title: OF.type === 'LIMIT' ? '限價進場' : '市價進場' });
     if (P.tp) L.push({ id: 'tp', price: P.tp, color: '#26a69a', width: 2, title: lab('tp') });
@@ -3608,7 +3610,7 @@ function ofLines(P) {
 function qxDragItems() {
   const P = ofPlan(), it = [];
   if (OF.show && P.E) { if (OF.type === 'LIMIT') it.push({ key: 'e', price: P.E }); if (P.tp) it.push({ key: 'tp', price: P.tp }); if (P.sl) it.push({ key: 'sl', price: P.sl }); }
-  for (const p of BX.pos) if (p.sym === QX.sym) for (const k of ['tp', 'sl']) { const v = posVal(p, k); if (v) it.push({ key: `p|${p.id}|${k}`, price: v }); }
+  for (const p of BX.pos) if (p.sym === QX.sym) { for (const k of ['tp', 'sl']) { const v = posVal(p, k); if (v) it.push({ key: `p|${p.id}|${k}`, price: v }); } if (!p.tp || !p.sl) it.push({ key: `p|${p.id}|e`, price: p.entry }); }
   return it;
 }
 function qxDragBind(C) {
@@ -3623,23 +3625,23 @@ function qxDragBind(C) {
     let html = '', c = '#9aa0a8';
     if (k === 'e') html = `限價進場 <b>${klFmt(ofPlan().E)}</b>`;
     else if (k === 'tp' || k === 'sl') { const P = ofPlan(), px = P[k]; if (!px) return; c = k === 'tp' ? '#26a69a' : '#ef5350'; html = `<b style="color:${c}">${P[k + 'U'] == null ? '' : sgn(P[k + 'U']) + ' U　'}${sgn(P[k + 'Roe'], 1)}%</b><br><span style="color:#8d96a3">${klFmt(px)}・價格 ${sgn(P[k + 'Mv'])}%</span>`; }
-    else { const [, id, kk] = k.split('|'), p = BX.pos.find(x => x.id === id); if (!p || !BX.drag) return; const R = posPL(p, BX.drag.price); c = kk === 'tp' ? '#26a69a' : '#ef5350'; html = `持倉${kk === 'tp' ? '止盈' : '止損'}改到 <b style="color:${c}">${klFmt(BX.drag.price)}</b><br><b style="color:${c}">${sgn(R.u)} U　${sgn(R.roe, 1)}%</b>　<span style="color:#8d96a3">放開後確認</span>`; }
+    else { const [, id] = k.split('|'), p = BX.pos.find(x => x.id === id); if (!p || !BX.drag) return; const kk = BX.drag.k; if (!kk) { html = `往${p.dir > 0 ? '上' : '下'}拉＝新增止盈，往${p.dir > 0 ? '下' : '上'}拉＝新增止損`; c = '#c9a55a'; tag.style.borderColor = c; tag.innerHTML = html; const bx0 = box.getBoundingClientRect(); tag.style.left = (e.clientX - bx0.left - 14) + 'px'; tag.style.top = (e.clientY - bx0.top) + 'px'; tag.hidden = false; return; } const R = posPL(p, BX.drag.price); c = kk === 'tp' ? '#26a69a' : '#ef5350'; html = `持倉${kk === 'tp' ? '止盈' : '止損'}改到 <b style="color:${c}">${klFmt(BX.drag.price)}</b><br><b style="color:${c}">${sgn(R.u)} U　${sgn(R.roe, 1)}%</b>　<span style="color:#8d96a3">放開後確認</span>`; }
     tag.style.borderColor = c; tag.innerHTML = html; const bx = box.getBoundingClientRect(); tag.style.left = (e.clientX - bx.left - 14) + 'px'; tag.style.top = (e.clientY - bx.top) + 'px'; tag.hidden = false; };
   box.addEventListener('pointerdown', e => { const k = hit(e); if (!k) return; e.stopPropagation(); e.preventDefault(); OF.drag = { k, C }; box.setPointerCapture(e.pointerId);
-    if (k.startsWith('p|')) { const [, id, kk] = k.split('|'), p = BX.pos.find(x => x.id === id); BX.drag = { id, k: kk, price: p[kk] }; } show(e, k); }, true);
+    if (k.startsWith('p|')) { const [, id, kk] = k.split('|'), p = BX.pos.find(x => x.id === id); BX.drag = kk === 'e' ? { id, k: '', from: 'e', price: p.entry } : { id, k: kk, price: p[kk] }; } show(e, k); }, true);
   for (const ev of ['mousedown', 'touchstart']) box.addEventListener(ev, e => { if (OF.drag && OF.drag.C === C) { e.stopPropagation(); e.preventDefault(); } }, { capture: true, passive: false });
   box.addEventListener('pointermove', e => {
     if (!OF.drag || OF.drag.C !== C) { box.classList.toggle('plhot', !!hit(e)); return; }
     e.stopPropagation(); const price = C.cs.coordinateToPrice(yIn(e)); if (price == null || !(price > 0)) return;
     const k = OF.drag.k, qp = ofPair() ? +ofPair().quotePrecision || 2 : 2, p = +price.toFixed(qp);
-    if (k === 'e') { $('ofPx').value = p; ofCalc(); } else if (k === 'tp' || k === 'sl') { OF.m[k] = 'px'; OF.v[k] = p; ofCalc(); } else { BX.drag.price = p; bxLines(); }
+    if (k === 'e') { $('ofPx').value = p; ofCalc(); } else if (BX.drag && BX.drag.from === 'e') { const ps = BX.pos.find(x => x.id === BX.drag.id); BX.drag.price = p; const want = ps.dir * (p - ps.entry) > 0 ? 'tp' : 'sl'; BX.drag.k = !ps[want] ? want : ''; bxLines(); } else if (k === 'tp' || k === 'sl') { OF.m[k] = 'px'; OF.v[k] = p; ofCalc(); } else { BX.drag.price = p; bxLines(); }
     show(e, k);
   }, true);
   const end = async e => { if (!OF.drag || OF.drag.C !== C) return; e.stopPropagation(); const k = OF.drag.k; OF.drag = null; tag.hidden = true;
     if (!k.startsWith('p|')) { ofSave(); return; }
-    const d = BX.drag, p = BX.pos.find(x => x.id === d.id); if (!p || Math.abs(d.price - p[d.k]) < 1e-9) { BX.drag = null; bxLines(); return; }
+    const d = BX.drag, p = BX.pos.find(x => x.id === d.id); if (!p || !d.k || Math.abs(d.price - (p[d.k] || 0)) < 1e-9 || Math.abs(d.price - p.entry) / p.entry < 1e-5) { BX.drag = null; bxLines(); return; }
     const R = posPL(p, d.price);
-    if (confirm(`把 ${p.sym} ${p.dir > 0 ? '多單' : '空單'}的${d.k === 'tp' ? '止盈' : '止損'}從 ${klFmt(p[d.k])} 改到 ${klFmt(d.price)}？\n觸發時 ${sgn(R.u)} U（保證金 ${sgn(R.roe, 1)}%）`)) {
+    if (confirm(`${p[d.k] ? '把' : '幫'} ${p.sym} ${p.dir > 0 ? '多單' : '空單'}${p[d.k] ? `的${d.k === 'tp' ? '止盈' : '止損'}從 ${klFmt(p[d.k])} 改到 ${klFmt(d.price)}` : `新增${d.k === 'tp' ? '止盈' : '止損'}在 ${klFmt(d.price)}`}？\n觸發時 ${sgn(R.u)} U（保證金 ${sgn(R.roe, 1)}%）`)) {
       try { await bxSetTpsl(p, d.k === 'tp' ? d.price : p.tp, d.k === 'sl' ? d.price : p.sl); p[d.k] = d.price; ofMsg(`已改${d.k === 'tp' ? '止盈' : '止損'}到 ${klFmt(d.price)}`, 'ok'); } catch (x) { ofMsg(x.message, 'err'); }
     }
     BX.drag = null; bxRender(); setTimeout(bxPoll, 600); };
@@ -3736,7 +3738,7 @@ async function ofSubmit(skipCfm) {
     }
     const lv = LS.get('qxLev', {}); lv[sym] = lev; LS.set('qxLev', lv); LS.set('qxMode', mode); ofSave();
     const r = await bxReq('POST', '/api/v1/futures/trade/place_order', body);
-    ofMsg(`已送出${r && r.orderId ? '，單號 ' + r.orderId : ''}`, 'ok'); setTimeout(bxPoll, 600); return true;
+    ofMsg(`已送出${r && r.orderId ? '，單號 ' + r.orderId : ''}`, 'ok'); OF.v.tp = OF.v.sl = 0; if (OF.type === 'LIMIT') $('ofPx').value = ''; ofCalc(); ofSave(); setTimeout(bxPoll, 600); return true;
   } catch (e) { ofMsg(e.message, 'err'); }
   finally { $('ofGo').disabled = !BX.key; }
 }
