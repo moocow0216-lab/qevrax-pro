@@ -754,7 +754,7 @@ setInterval(async () => {                              // ⏱ 每秒：更新倒
 function klClose() { KL.open = false; for (const P of KM.panes) { clearInterval(P.poll); if (P.ws) { P.ws.onclose = null; try { P.ws.close(); } catch (e) {} P.ws = null; } } if (KL.ws) { KL.ws.onclose = null; try { KL.ws.close(); } catch (e) {} KL.ws = null; } }
 /* ---------- ⚙ K 線圖設定（照 TradingView 的「設定 → 商品」）：K 線顏色、依前一收盤價上色、精確度、時區、範本；🖼 自訂圖表桌布 ---------- */
 const KS_LAY = { vGrid: true, vGridC: 'auto', hGrid: true, hGridC: 'auto', sep: 'auto', cross: '#9598a1', crossSt: 1, crossW: 1, wm: 'none', wmC: 'auto', txC: 'auto', txSize: 12, lineC: 'auto', nav: 'hover' };
-const KS_SC = { symLab: true, priceLab: true, cd: true, pline: true, plC: 'auto', plSt: 1, plW: 1 };   // 比例和線條：商品名稱標籤、最新價格標籤、收盤倒數、最新價格線
+const KS_SC = { symLab: false, priceLab: true, cd: true, pline: true, plC: 'auto', plSt: 1, plW: 1 };   // 比例和線條：商品名稱標籤、最新價格標籤、收盤倒數、最新價格線
 const KS_DEF = { sc: KS_SC, lay: KS_LAY, prevClose: false, body: true, border: true, wick: true, upBody: '#26a69a', dnBody: '#ef5350', upBorder: '#26a69a', dnBorder: '#ef5350', upWick: '#26a69a', dnWick: '#ef5350', prec: 'auto', tz: 'Asia/Taipei',
   bg: { type: 'theme', color: '#0c0e11', top: '#1a1f2e', bottom: '#0b0e14', img: '', dim: 45, fit: 'cover', grid: true } };
 const KS_TPL = {
@@ -2873,6 +2873,7 @@ function fitCanvas(cv) { const r = cv.getBoundingClientRect(), d = window.device
 const FONT = '11px "IBM Plex Sans","Noto Sans TC",sans-serif';
 
 /* ---------- 固定兩格、同一個幣（上下排），K 線換幣時右邊兩格跟著換 ---------- */
+(function klSymLabOff() { if (LS.get('qxSymLabOff', 0)) return; LS.set('qxSymLabOff', 1); if (KS && KS.sc) { KS.sc.symLab = false; LS.set('klSet', KS); } })();
 (function klFixed() {
   KM.lay = '2v'; LS.set('klLayout', '2v');
   KM.syncSym = true; LS.set('klSyncSym', true);
@@ -3165,6 +3166,9 @@ function hmDraw() {
   g.fillStyle = '#060a12'; g.fillRect(0, ph + 1, ax, HM_TB - 1); g.fillStyle = '#8d96a3';
   const sec = HM.tf, need = Math.ceil(90 / cw) * sec, step = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400].find(x => x >= need) || 86400;
   for (let i = start; i < end; i++) { const t = cols[i].t; if (t % step) continue; const x = xOf(i); if (x < 2 || x > pw - 50) continue; g.fillRect(Math.round(x), ph + 1, 1, 4); g.fillText(hms(t * 1000, step < 60), x + 3, ph + 15); }
+  if (QX.xh && !(HM.hover && HM.hover.x < pw)) { const y = Math.round(yOf(QX.xh.price)) + 0.5; if (y > 0 && y < ph) {   // K 線圖上指到的價格
+    g.strokeStyle = 'rgba(201,165,90,.85)'; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(0, y); g.lineTo(pw + HM_PF, y); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#c9a55a'; g.fillRect(ax + 1, y - 9, HM_AX - 2, 18); g.fillStyle = '#16120a'; g.font = '600 ' + FONT; g.fillText(klFmt(QX.xh.price), ax + 6, y + 4); g.font = FONT; } }
   // 7) 十字線＋這一根的資料
   const hv = HM.hover; if (hv && !HM.drag && hv.x < pw && hv.y < ph) {
     g.strokeStyle = 'rgba(255,255,255,.35)'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(hv.x + .5, 0); g.lineTo(hv.x + .5, ph); g.moveTo(0, hv.y + .5); g.lineTo(pw, hv.y + .5); g.stroke(); g.setLineDash([]);
@@ -3322,6 +3326,9 @@ function lqDraw() {
   g.fillStyle = '#7f8792'; g.textAlign = 'center'; const st = niceStep((hi - lo) / Math.max(2, pw / 90));
   for (let p = Math.ceil(lo / st) * st; p <= hi; p += st) { const x = xOf(p); g.fillText(klFmt(p), x, H - 8); }
   g.textAlign = 'left';
+  if (QX.xh && !LQ.hover) { const x = xOf(QX.xh.price); if (x >= M.l && x <= M.l + pw) {
+    g.strokeStyle = 'rgba(201,165,90,.85)'; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(Math.round(x) + .5, M.t); g.lineTo(Math.round(x) + .5, M.t + ph); g.stroke(); g.setLineDash([]);
+    const t = klFmt(QX.xh.price), tw = g.measureText(t).width + 10; g.fillStyle = '#c9a55a'; g.fillRect(clamp(x - tw / 2, M.l, M.l + pw - tw), H - M.b + 2, tw, 17); g.fillStyle = '#16120a'; g.textAlign = 'left'; g.fillText(t, clamp(x - tw / 2, M.l, M.l + pw - tw) + 5, H - M.b + 14); } }
   // 滑鼠位置
   const hv = LQ.hover; if (hv && hv.x >= M.l && hv.x <= M.l + pw) {
     const i = clamp(Math.floor((hv.x - M.l) / (pw / nb)), 0, nb - 1), p = lo + (i + 0.5) * bw;
@@ -3430,8 +3437,8 @@ function bxRender() {
 }
 /* ---- 兩張 K 線圖共用：價格線、拖曳 ---- */
 function qxCharts() {
-  const L = []; if (KL.cs && $('klChart')) L.push({ cs: KL.cs, ch: KL.ch, el: $('klChart'), box: $('klChart').parentNode, sym: KL.sym });
-  for (const P of (KM.panes || [])) if (P.cs && !P.dead) { const el = P.el.querySelector('.kmc'); if (el) L.push({ cs: P.cs, ch: P.ch, el, box: el, sym: P.sym }); }
+  const L = []; if (KL.cs && $('klChart')) L.push({ id: 'm', cs: KL.cs, ch: KL.ch, el: $('klChart'), box: $('klChart').parentNode, sym: KL.sym, data: () => KL.data });
+  for (const P of (KM.panes || [])) if (P.cs && !P.dead) { const el = P.el.querySelector('.kmc'); if (el) L.push({ id: 'p' + P.i, cs: P.cs, ch: P.ch, el, box: el, sym: P.sym, data: () => P.data }); }
   return L;
 }
 const QL = new WeakMap();
@@ -3863,6 +3870,28 @@ function viewBind() {
   $('viewPre').onclick = e => { const b = e.target.closest('[data-p]'); if (!b) return; for (const [k, v] of Object.entries(P[b.dataset.p])) VW[k] = !!v; save(); };
   viewApply();
 }
+
+/* ---------- 十字線連動：滑鼠指到哪個時間、價格，另一張 K 線圖、熱力圖、清算地圖一起跟著指 ---------- */
+const XH = { on: false, bound: new WeakSet() };
+function xhBarTime(D, t) { let lo = 0, hi = D.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (D[m].time <= t) { r = m; lo = m + 1; } else hi = m - 1; } return r >= 0 ? D[r].time : null; }   // 另一張圖可能是別的週期：找包含這個時間的那一根
+function xhBind() {
+  for (const C of qxCharts()) {
+    if (XH.bound.has(C.ch)) continue; XH.bound.add(C.ch);
+    C.ch.subscribeCrosshairMove(p => {
+      if (p && p.point && !p.sourceEvent) return;          // 是我們自己設的十字線，不要再傳出去
+      const all = qxCharts();
+      if (!p || !p.point || p.time == null) {             // 滑鼠離開：全部清掉
+        if (!XH.on) return; XH.on = false; QX.xh = null;
+        for (const D of all) if (D.ch !== C.ch) try { D.ch.clearCrosshairPosition(); } catch (e) {}
+        HM.dirty = LQ.dirty = true; return;
+      }
+      const price = C.cs.coordinateToPrice(p.point.y); if (price == null) return;
+      XH.on = true; QX.xh = { price, src: C.id };
+      for (const D of all) { if (D.ch === C.ch) continue; const bt = xhBarTime(D.data() || [], p.time); try { if (bt != null) D.ch.setCrosshairPosition(price, bt, D.cs); else D.ch.clearCrosshairPosition(); } catch (e) {} }
+      HM.dirty = LQ.dirty = true;
+    });
+  }
+}
 /* ---------- 版面：下單欄開關、重畫迴圈 ---------- */
 function dockSet(on) { $('dock').hidden = !on; $('dockBtn').setAttribute('aria-pressed', String(on)); LS.set('qxDock', on); HM.dirty = LQ.dirty = true; }
 function loop() {
@@ -3876,10 +3905,10 @@ function loop() {
   $('tkSym').onclick = e => { e.stopPropagation(); if ($('klPick')) klPickOpen($('tkSym'), null); };
   hmBind(); lqBind(); ofBind(); setBind(); viewBind();
   new ResizeObserver(() => { HM.dirty = LQ.dirty = true; }).observe(document.querySelector('.stage'));
-  const tickSec = () => { hmSample(); try { ofDragBind(); } catch (e) {} setTimeout(tickSec, 1000 - Date.now() % 1000 + 5); }; setTimeout(tickSec, 1000 - Date.now() % 1000 + 5);
+  const tickSec = () => { hmSample(); try { ofDragBind(); xhBind(); } catch (e) {} setTimeout(tickSec, 1000 - Date.now() % 1000 + 5); }; setTimeout(tickSec, 1000 - Date.now() % 1000 + 5);
   try { const s = JSON.parse(sessionStorage.getItem('qxApiS') || 'null'); if (s && s.k) { BX.key = s.k; BX.secret = s.s; } } catch (e) {}
   bxStart(); lqTimer(); requestAnimationFrame(loop);
-  klInit().then(() => { const pk = $('klPick'); if (pk) document.querySelector('.tick').appendChild(pk); if (!QX.sym) qxSym(KL.sym); ofDragBind(); ofCalc(); tpBind(); });
+  klInit().then(() => { const pk = $('klPick'); if (pk) document.querySelector('.tick').appendChild(pk); if (!QX.sym) qxSym(KL.sym); ofDragBind(); xhBind(); ofCalc(); tpBind(); });
   if (!QX.sym) qxSym(KL.sym);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { HM.dirty = LQ.dirty = true; bxPoll(); } });
 })();
