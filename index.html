@@ -499,7 +499,7 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
           <div class="ofmsg" id="ofMsg" role="status"></div>
         </div>
         <div class="lists">
-          <div class="ltabs" role="tablist"><button role="tab" data-t="pos" aria-selected="true" id="tbPos">持倉</button><button role="tab" data-t="ord" aria-selected="false" id="tbOrd">委託</button><span class="spacer"></span><button class="ibtn eyeb" id="lsEye" aria-pressed="false"></button><button class="ibtn" id="lsRe" title="重新整理" aria-label="重新整理持倉和委託">↻</button></div>
+          <div class="ltabs" role="tablist"><button role="tab" data-t="pos" aria-selected="true" id="tbPos">持倉</button><button role="tab" data-t="ord" aria-selected="false" id="tbOrd">委託</button><span class="spacer"></span><select class="sel" id="lsView" aria-label="倉位顯示方式" title="倉位顯示方式"><option value="full">👁 完整顯示</option><option value="pct">％ 只留盈利率</option><option value="hide">🙈 隱藏倉位</option></select><button class="ibtn" id="lsRe" title="重新整理" aria-label="重新整理持倉和委託">↻</button></div>
           <div id="lsBody"></div>
         </div>
       </div>
@@ -3433,8 +3433,11 @@ function lqBind() {
    🔑 Bitunix：簽名、下單、持倉、委託（金鑰只存在你的瀏覽器）
    簽名：digest = SHA256(nonce + timestamp + apiKey + 排序後的 query 參數 + body)；sign = SHA256(digest + secret)
    ===================================================================== */
-const posShown = p => !BX.hideAll && !BX.hideIds.has(p.id);   // 隱藏倉位：圖上不畫、不能拖
-const BX = { hideAll: LS.get('qxHidePos', false), hideIds: new Set(LS.get('qxHideIds', [])), key: '', secret: '', proxy: LS.get('qxProxy', ''), cfm: LS.get('qxCfm', true), store: LS.get('qxStore', 'session'), pairs: new Map(), pairsAt: 0,
+const posShown = p => BX.view !== 'hide' && !BX.hideIds.has(p.id);   // 隱藏倉位：圖上不畫、不能拖
+const PV = () => BX.view === 'pct';                                   // 只留盈利率：金額、數量都不顯示，只顯示 %
+const MASK = '＊＊＊';
+const posRoe = p => p.margin ? p.upnl / p.margin * 100 : 0;
+const BX = { view: ['full', 'pct', 'hide'].includes(LS.get('qxPosView', '')) ? LS.get('qxPosView', 'full') : (LS.get('qxHidePos', false) ? 'hide' : 'full'), hideIds: new Set(LS.get('qxHideIds', [])), key: '', secret: '', proxy: LS.get('qxProxy', ''), cfm: LS.get('qxCfm', true), store: LS.get('qxStore', 'session'), pairs: new Map(), pairsAt: 0,
   pos: [], ord: [], acct: null, ok: false, err: '', timer: 0, lev: {}, tab: 'pos', lines: [], busy: false };
 const BX_BASE = () => (BX.proxy || 'https://fapi.bitunix.com').replace(/\/+$/, '');
 const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -3489,8 +3492,9 @@ function bxStatus() {
 }
 function bxRender() {
   bxStatus();
-  const A = BX.acct; $('acAvail').textContent = A ? f2(A.avail) : '—'; $('acMargin').textContent = A ? f2(A.margin) : '—';
-  const u = $('acUpnl'); u.textContent = A ? (A.upnl >= 0 ? '+' : '') + f2(A.upnl) : '—'; u.className = A ? (A.upnl >= 0 ? 'up' : 'dn') : '';
+  const A = BX.acct; $('acAvail').textContent = A ? (PV() ? MASK : f2(A.avail)) : '—'; $('acMargin').textContent = A ? (PV() ? MASK : f2(A.margin)) : '—';
+  const u = $('acUpnl'); u.textContent = A ? (PV() ? (A.margin ? sgn(A.upnl / A.margin * 100, 2) + '%' : '—') : (A.upnl >= 0 ? '+' : '') + f2(A.upnl)) : '—'; u.className = A ? (A.upnl >= 0 ? 'up' : 'dn') : '';
+  $('acUpnl').previousElementSibling.textContent = PV() ? '未實現盈利率' : '未實現損益';
   // 沒有金鑰／上鎖／連線失敗的提示
   const gate = $('gate'), enc = localStorage.getItem('qxApiE');
   if (!BX.key && enc) { gate.hidden = false; gate.innerHTML = `<p>金鑰已加密存在這台電腦，輸入密碼解鎖後就能下單。</p><div class="row"><div class="inp" style="flex:1"><input id="gPw" type="password" placeholder="加密密碼" aria-label="加密密碼"></div><button class="btn primary" id="gGo">解鎖</button></div><p class="ofmsg" id="gMsg"></p>`;
@@ -3502,12 +3506,12 @@ function bxRender() {
   $('tbPos').textContent = `持倉 ${BX.pos.length || ''}`; $('tbOrd').textContent = `委託 ${BX.ord.length || ''}`;
   const L = $('lsBody');
   if (!BX.key) L.innerHTML = '<p class="empty">連接 API 後會顯示你的持倉和委託。</p>';
-  else if (BX.tab === 'pos') L.innerHTML = BX.pos.length ? BX.pos.map(p => `<div class="it"><div class="h"><b>${esc(p.sym.replace(/USDT$/, ''))}</b><span class="tagd ${p.dir > 0 ? 'l' : 's'}">${p.dir > 0 ? '多' : '空'} ${p.lev}x</span>${posShown(p) ? '' : '<span class="tagd h">圖上已隱藏</span>'}<span style="color:var(--dim);font-size:11px">${p.mode === 'CROSS' ? '全倉' : '逐倉'}</span><span class="spacer"></span><b class="${p.upnl >= 0 ? 'up' : 'dn'}">${p.upnl >= 0 ? '+' : ''}${f2(p.upnl)}</b></div>
-      <div class="g"><span><small>數量</small>${p.qty}</span><span><small>開倉價</small>${klFmt(p.entry)}</span><span><small>強平價</small>${p.liq ? klFmt(p.liq) : '—'}</span></div>
-      <div class="g2">${['tp', 'sl'].map(k => { const v = p[k], R = posPL(p, v); return `<span><small>${k === 'tp' ? '止盈' : '止損'}</small>${v ? `${klFmt(v)} <i class="${R.u >= 0 ? 'up' : 'dn'}">${sgn(R.u)}U・${sgn(R.roe, 1)}%</i>` : '<i>未設</i>'}</span>`; }).join('')}</div>
+  else if (BX.tab === 'pos') L.innerHTML = BX.pos.length ? BX.pos.map(p => `<div class="it"><div class="h"><b>${esc(p.sym.replace(/USDT$/, ''))}</b><span class="tagd ${p.dir > 0 ? 'l' : 's'}">${p.dir > 0 ? '多' : '空'} ${p.lev}x</span>${posShown(p) ? '' : '<span class="tagd h">圖上已隱藏</span>'}<span style="color:var(--dim);font-size:11px">${p.mode === 'CROSS' ? '全倉' : '逐倉'}</span><span class="spacer"></span><b class="${p.upnl >= 0 ? 'up' : 'dn'}">${PV() ? sgn(posRoe(p), 2) + '%' : (p.upnl >= 0 ? '+' : '') + f2(p.upnl)}</b></div>
+      <div class="g"><span><small>數量</small>${PV() ? MASK : p.qty}</span><span><small>開倉價</small>${klFmt(p.entry)}</span><span><small>強平價</small>${p.liq ? klFmt(p.liq) : '—'}</span></div>
+      <div class="g2">${['tp', 'sl'].map(k => { const v = p[k], R = posPL(p, v); return `<span><small>${k === 'tp' ? '止盈' : '止損'}</small>${v ? `${klFmt(v)} <i class="${R.u >= 0 ? 'up' : 'dn'}">${PV() ? '' : sgn(R.u) + 'U・'}${sgn(R.roe, 1)}%</i>` : '<i>未設</i>'}</span>`; }).join('')}</div>
       <div class="a"><button data-hp="${esc(p.id)}" title="${BX.hideIds.has(p.id) ? '在圖上顯示這筆倉位' : '在圖上隱藏這筆倉位'}">${BX.hideIds.has(p.id) ? '顯示' : '隱藏'}</button><button data-tp="${esc(p.id)}">改止盈止損</button><button data-cp="${esc(p.id)}" data-h="1">平一半</button><button data-cp="${esc(p.id)}">市價全平</button></div></div>`).join('') : '<p class="empty">目前沒有持倉。</p>';
   else L.innerHTML = BX.ord.length ? BX.ord.map(o => `<div class="it"><div class="h"><b>${esc(o.sym.replace(/USDT$/, ''))}</b><span class="tagd ${o.side === 'BUY' ? 'l' : 's'}">${o.side === 'BUY' ? '買' : '賣'}${o.type === 'LIMIT' ? '・限價' : ''}${o.reduce ? '・只減倉' : ''}</span><span class="spacer"></span><span style="color:var(--dim);font-size:11px">${o.t ? hms(o.t, false) : ''}</span></div>
-      <div class="g"><span><small>價格</small>${o.px ? klFmt(o.px) : '市價'}</span><span><small>數量</small>${o.qty}</span><span><small>已成交</small>${o.filled}</span></div>
+      <div class="g"><span><small>價格</small>${o.px ? klFmt(o.px) : '市價'}</span><span><small>數量</small>${PV() ? MASK : o.qty}</span><span><small>已成交</small>${PV() ? MASK : o.filled}</span></div>
       <div class="a"><button data-co="${esc(o.id)}" data-s="${esc(o.sym)}">撤單</button></div></div>`).join('') : '<p class="empty">目前沒有掛單。</p>';
   bxLines();
 }
@@ -3531,11 +3535,11 @@ const posVal = (p, k) => BX.drag && BX.drag.id === p.id && BX.drag.k === k ? BX.
 function bxLines() {                                     // 持倉、掛單、持倉止盈止損畫在兩張圖上
   const L = [];
   for (const p of BX.pos) if (p.sym === QX.sym && posShown(p)) {
-    L.push({ id: 'pe' + p.id, price: p.entry, color: '#c9a55a', title: `${p.dir > 0 ? '多' : '空'} ${p.qty}` });
+    L.push({ id: 'pe' + p.id, price: p.entry, color: '#c9a55a', title: PV() ? `${p.dir > 0 ? '多' : '空'} ${sgn(posRoe(p), 1)}%` : `${p.dir > 0 ? '多' : '空'} ${p.qty}` });
     if (p.liq) L.push({ id: 'pl' + p.id, price: p.liq, color: '#ff9800', style: 2, title: '強平' });
-    for (const k of ['tp', 'sl']) { const v = posVal(p, k); if (!v) continue; const R = posPL(p, v); L.push({ id: 'p' + k + p.id, price: v, color: k === 'tp' ? '#26a69a' : '#ef5350', style: 1, width: 2, title: `持倉${k === 'tp' ? '止盈' : '止損'} ${sgn(R.u)}U ${sgn(R.roe, 1)}%` }); }
+    for (const k of ['tp', 'sl']) { const v = posVal(p, k); if (!v) continue; const R = posPL(p, v); L.push({ id: 'p' + k + p.id, price: v, color: k === 'tp' ? '#26a69a' : '#ef5350', style: 1, width: 2, title: `持倉${k === 'tp' ? '止盈' : '止損'} ${PV() ? '' : sgn(R.u) + 'U '}${sgn(R.roe, 1)}%` }); }
   }
-  for (const o of BX.ord) if (o.sym === QX.sym && o.px) L.push({ id: 'o' + o.id, price: o.px, color: '#7aa2ff', style: 1, title: `${o.side === 'BUY' ? '買' : '賣'} ${o.qty}` });
+  for (const o of BX.ord) if (o.sym === QX.sym && o.px) L.push({ id: 'o' + o.id, price: o.px, color: '#7aa2ff', style: 1, title: `${o.side === 'BUY' ? '買' : '賣'} ${PV() ? '掛單' : o.qty}` });
   linesSync('bx', L); LQ.dirty = true;
 }
 
@@ -3629,7 +3633,7 @@ function qxDragBind(C) {
     let html = '', c = '#9aa0a8';
     if (k === 'e') html = `限價進場 <b>${klFmt(ofPlan().E)}</b>`;
     else if (k === 'tp' || k === 'sl') { const P = ofPlan(), px = P[k]; if (!px) return; c = k === 'tp' ? '#26a69a' : '#ef5350'; html = `<b style="color:${c}">${P[k + 'U'] == null ? '' : sgn(P[k + 'U']) + ' U　'}${sgn(P[k + 'Roe'], 1)}%</b><br><span style="color:#8d96a3">${klFmt(px)}・價格 ${sgn(P[k + 'Mv'])}%</span>`; }
-    else { const [, id] = k.split('|'), p = BX.pos.find(x => x.id === id); if (!p || !BX.drag) return; const kk = BX.drag.k; if (!kk) { html = `往${p.dir > 0 ? '上' : '下'}拉＝新增止盈，往${p.dir > 0 ? '下' : '上'}拉＝新增止損`; c = '#c9a55a'; tag.style.borderColor = c; tag.innerHTML = html; const bx0 = box.getBoundingClientRect(); tag.style.left = (e.clientX - bx0.left - 14) + 'px'; tag.style.top = (e.clientY - bx0.top) + 'px'; tag.hidden = false; return; } const R = posPL(p, BX.drag.price); c = kk === 'tp' ? '#26a69a' : '#ef5350'; html = `持倉${kk === 'tp' ? '止盈' : '止損'}改到 <b style="color:${c}">${klFmt(BX.drag.price)}</b><br><b style="color:${c}">${sgn(R.u)} U　${sgn(R.roe, 1)}%</b>　<span style="color:#8d96a3">放開後確認</span>`; }
+    else { const [, id] = k.split('|'), p = BX.pos.find(x => x.id === id); if (!p || !BX.drag) return; const kk = BX.drag.k; if (!kk) { html = `往${p.dir > 0 ? '上' : '下'}拉＝新增止盈，往${p.dir > 0 ? '下' : '上'}拉＝新增止損`; c = '#c9a55a'; tag.style.borderColor = c; tag.innerHTML = html; const bx0 = box.getBoundingClientRect(); tag.style.left = (e.clientX - bx0.left - 14) + 'px'; tag.style.top = (e.clientY - bx0.top) + 'px'; tag.hidden = false; return; } const R = posPL(p, BX.drag.price); c = kk === 'tp' ? '#26a69a' : '#ef5350'; html = `持倉${kk === 'tp' ? '止盈' : '止損'}改到 <b style="color:${c}">${klFmt(BX.drag.price)}</b><br><b style="color:${c}">${PV() ? '' : sgn(R.u) + ' U　'}${sgn(R.roe, 1)}%</b>　<span style="color:#8d96a3">放開後確認</span>`; }
     tag.style.borderColor = c; tag.innerHTML = html; const bx = box.getBoundingClientRect(); tag.style.left = (e.clientX - bx.left - 14) + 'px'; tag.style.top = (e.clientY - bx.top) + 'px'; tag.hidden = false; };
   box.addEventListener('pointerdown', e => { const k = hit(e); if (!k) return; e.stopPropagation(); e.preventDefault(); OF.drag = { k, C }; box.setPointerCapture(e.pointerId);
     if (k.startsWith('p|')) { const [, id, kk] = k.split('|'), p = BX.pos.find(x => x.id === id); BX.drag = kk === 'e' ? { id, k: '', from: 'e', price: p.entry } : { id, k: kk, price: p[kk] }; } show(e, k); }, true);
@@ -3645,7 +3649,7 @@ function qxDragBind(C) {
     if (!k.startsWith('p|')) { ofSave(); return; }
     const d = BX.drag, p = BX.pos.find(x => x.id === d.id); if (!p || !d.k || Math.abs(d.price - (p[d.k] || 0)) < 1e-9 || Math.abs(d.price - p.entry) / p.entry < 1e-5) { BX.drag = null; bxLines(); return; }
     const R = posPL(p, d.price);
-    if (confirm(`${p[d.k] ? '把' : '幫'} ${p.sym} ${p.dir > 0 ? '多單' : '空單'}${p[d.k] ? `的${d.k === 'tp' ? '止盈' : '止損'}從 ${klFmt(p[d.k])} 改到 ${klFmt(d.price)}` : `新增${d.k === 'tp' ? '止盈' : '止損'}在 ${klFmt(d.price)}`}？\n觸發時 ${sgn(R.u)} U（保證金 ${sgn(R.roe, 1)}%）`)) {
+    if (confirm(`${p[d.k] ? '把' : '幫'} ${p.sym} ${p.dir > 0 ? '多單' : '空單'}${p[d.k] ? `的${d.k === 'tp' ? '止盈' : '止損'}從 ${klFmt(p[d.k])} 改到 ${klFmt(d.price)}` : `新增${d.k === 'tp' ? '止盈' : '止損'}在 ${klFmt(d.price)}`}？\n觸發時 ${PV() ? '' : sgn(R.u) + ' U，'}保證金 ${sgn(R.roe, 1)}%`)) {
       try { await bxSetTpsl(p, d.k === 'tp' ? d.price : p.tp, d.k === 'sl' ? d.price : p.sl); p[d.k] = d.price; ofMsg(`已改${d.k === 'tp' ? '止盈' : '止損'}到 ${klFmt(d.price)}`, 'ok'); } catch (x) { ofMsg(x.message, 'err'); }
     }
     BX.drag = null; bxRender(); setTimeout(bxPoll, 600); };
@@ -3688,11 +3692,11 @@ function tpPlan(p) {
 }
 function tpCalc() {
   const p = BX.pos.find(x => x.id === TP.id); if (!p) return; const ref = (p.sym === QX.sym && QX.mark) || p.entry, X = tpPlan(p), pr = BX.pairs.get(p.sym), qp = pr ? +pr.quotePrecision || 2 : 2;
-  $('tpInfo').innerHTML = `數量 ${p.qty}・開倉 ${klFmt(p.entry)}・現在 ${klFmt(ref)}・強平 ${p.liq ? klFmt(p.liq) : '—'}・保證金 ${f2(p.margin)}U`;
+  $('tpInfo').innerHTML = `數量 ${PV() ? MASK : p.qty}・開倉 ${klFmt(p.entry)}・現在 ${klFmt(ref)}・強平 ${p.liq ? klFmt(p.liq) : '—'}・保證金 ${PV() ? MASK : f2(p.margin) + 'U'}`;
   for (const k of ['tp', 'sl']) { const K = k === 'tp' ? 'Tp' : 'Sl', px = X[k], R = posPL(p, px);
     if (document.activeElement !== $('tp' + K + 'P')) $('tp' + K + 'P').value = px ? px.toFixed(qp) : '';
     if (document.activeElement !== $('tp' + K + 'U')) $('tp' + K + 'U').value = px ? Math.abs(R.u).toFixed(2) : '';
-    let h = px ? `<div>價格（從開倉）<b class="${R.u >= 0 ? 'up' : 'dn'}">${sgn(R.mv)}%</b></div><div>保證金<b class="${R.u >= 0 ? 'up' : 'dn'}">${sgn(R.roe, 1)}%</b></div><div>觸發時<b class="${R.u >= 0 ? 'up' : 'dn'}">${sgn(R.u)} U</b></div><div class="wide">距離現價 ${sgn((px / ref - 1) * 100)}%</div>` : `<div class="wide">${k === 'tp' ? '不設止盈' : '不設止損'}</div>`;
+    let h = px ? `<div>價格（從開倉）<b class="${R.u >= 0 ? 'up' : 'dn'}">${sgn(R.mv)}%</b></div><div>保證金<b class="${R.u >= 0 ? 'up' : 'dn'}">${sgn(R.roe, 1)}%</b></div><div>觸發時<b class="${R.u >= 0 ? 'up' : 'dn'}">${PV() ? MASK : sgn(R.u) + ' U'}</b></div><div class="wide">距離現價 ${sgn((px / ref - 1) * 100)}%</div>` : `<div class="wide">${k === 'tp' ? '不設止盈' : '不設止損'}</div>`;
     if (px && k === 'tp' && p.dir * (px - ref) <= 0) h += '<div class="wide e">止盈已經在現價的另一邊，會馬上觸發</div>';
     if (px && k === 'sl' && p.dir * (px - ref) >= 0) h += '<div class="wide e">止損已經在現價的另一邊，會馬上觸發</div>';
     if (px && k === 'sl' && p.liq && p.dir * (px - p.liq) <= 0) h += '<div class="wide e">止損超過強平價，會先被強平</div>';
@@ -3783,8 +3787,8 @@ function ofBind() {
   $('ofCo').onclick = () => coOpen();
   document.querySelector('.ltabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; BX.tab = b.dataset.t; document.querySelectorAll('.ltabs [data-t]').forEach(x => x.setAttribute('aria-selected', String(x === b))); bxRender(); });
   $('lsRe').onclick = bxPoll;
-  const eye = () => { const b = $('lsEye'); b.setAttribute('aria-pressed', String(BX.hideAll)); b.textContent = BX.hideAll ? '🙈 倉位已隱藏' : '👁 圖上顯示倉位'; b.title = BX.hideAll ? '點一下讓倉位重新顯示在圖上' : '點一下把所有倉位從圖上隱藏'; };
-  $('lsEye').onclick = () => { BX.hideAll = !BX.hideAll; LS.set('qxHidePos', BX.hideAll); eye(); bxRender(); }; eye();
+  $('lsView').value = BX.view;
+  $('lsView').onchange = e => { BX.view = e.target.value; LS.set('qxPosView', BX.view); bxRender(); tpCalc(); };
   $('lsBody').addEventListener('click', e => { const c = e.target.closest('[data-cp]'); if (c) return bxClose(c.dataset.cp, !!c.dataset.h); const o = e.target.closest('[data-co]'); if (o) bxCancel(o.dataset.co, o.dataset.s); const t = e.target.closest('[data-tp]'); if (t) tpOpen(t.dataset.tp); const hp = e.target.closest('[data-hp]'); if (hp) { const id = hp.dataset.hp; if (BX.hideIds.has(id)) BX.hideIds.delete(id); else BX.hideIds.add(id); LS.set('qxHideIds', [...BX.hideIds]); bxRender(); } });
 }
 /* ---- 設定：API 金鑰（分頁暫存，或用密碼 AES-GCM 加密存在這台電腦） ---- */
