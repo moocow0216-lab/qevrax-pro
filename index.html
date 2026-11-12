@@ -3671,7 +3671,7 @@ function ofSymChanged() {
   if (QX.sym !== OF.sym) { const first = !OF.sym; OF.sym = QX.sym; if (OF.type === 'LIMIT') $('ofPx').value = ''; if (!first) { for (const k of ['tp', 'sl']) if (OF.m[k] === 'px') { OF.v[k] = 0; } } }   // 換幣：點位不能沿用
   ofCalc();
 }
-function ofEntry() { if (CO.post && CO.post.entry) return CO.post.entry; return OF.type === 'LIMIT' ? (+$('ofPx').value > 0 ? +$('ofPx').value : 0) : (QX.px || QX.mark); }
+function ofEntry() { if (CO.post && CO.post.entry && CO.step) return CO.post.entry; return OF.type === 'LIMIT' ? (+$('ofPx').value > 0 ? +$('ofPx').value : 0) : (QX.px || QX.mark); }
 function ofQty() {                                       // 保證金 × 槓桿 ÷ 進場價，照交易所的精度往下取
   const pr = ofPair(), m = +$('ofMgn').value, lev = +$('ofLev').value || 1, px = ofEntry(); if (!(m > 0) || !(px > 0)) return 0;
   const raw = m * lev / px; return pr ? flr(raw, +pr.basePrecision || 0) : +raw.toPrecision(6);
@@ -3886,7 +3886,7 @@ async function ofSubmit(skipCfm, noTpsl) {
     if (!(+$('ofMgn').value > 0)) throw new Error('請填每筆下多少 U');
     const P = ofPlan(); if (!(P.E > 0)) throw new Error(OF.type === 'LIMIT' ? '請填限價進場點位' : '讀不到價格，請稍等一下'); if (!(P.q > 0)) throw new Error('請填每筆下多少 U');
     if (P.q < +pr.minTradeVolume) throw new Error(`下單量 ${P.q} 小於最小下單量 ${pr.minTradeVolume}，請加大每筆金額或槓桿`);
-    if (!noTpsl && P.tpBad) throw new Error('止盈點位方向反了'); if (!noTpsl && P.slBad) throw new Error('止損點位方向反了');
+    if (!noTpsl && (P.tpBad || P.slBad)) throw new Error(`${P.tpBad ? '止盈' : '止損'}點位在進場價的另一邊（可能是上一單留下來的），按它旁邊的「清除」或重新設定`);
     if (!noTpsl && P.sl && (dir > 0 ? P.sl <= P.liq : P.sl >= P.liq)) throw new Error('止損價超過強平價，請把止損設近一點或降低槓桿');
     const body = { symbol: sym, qty: String(P.q), side: dir > 0 ? 'BUY' : 'SELL', tradeSide: 'OPEN', orderType: OF.type, clientId: 'qx' + Date.now().toString(36) };
     if (OF.type === 'LIMIT') { if (!(+$('ofPx').value > 0)) throw new Error('請填限價'); body.price = P.E.toFixed(qp); body.effect = 'GTC'; }
@@ -4017,20 +4017,13 @@ function coPos(l, t) {                                   // 放在圖表範圍�
   const b = $('coBox'), p = b && b.parentNode; if (!p) return; const W = p.clientWidth, H = p.clientHeight;
   b.style.left = clamp(l, 0, Math.max(0, W - b.offsetWidth)) + 'px'; b.style.top = clamp(t, 0, Math.max(0, H - Math.min(b.offsetHeight, H))) + 'px';
 }
+function ofDropStale() { const P = ofPlan(); let n = 0; for (const k of ['tp', 'sl']) if (P[k + 'Bad']) { OF.v[k] = 0; n++; } if (n) { ofCalc(); ofSave(); } return n; }   // 方向已經反了的止盈止損＝上一單留下來的，清掉
 function coOpen() {
   if (!KL.cs) return; if (CO.step) { coClose(); return; }
+  if (CO.post) { CO.post = null; } ofDropStale();
   OF.show = true; $('ofShow').checked = true; LS.set('qxPlShow', true); CO.post = null; coGo(1);
 }
 function coClose() { if (CO.post) { OF.v.tp = OF.v.sl = 0; ofSave(); } CO.step = 0; CO.post = null; const b = $('coBox'); if (b) b.hidden = true; ofCalc(); }
-function coPos(l, t) {                                   // 放在圖表範圍內，不會被拖到看不見
-  const b = $('coBox'), p = b && b.parentNode; if (!p) return; const W = p.clientWidth, H = p.clientHeight;
-  b.style.left = clamp(l, 0, Math.max(0, W - b.offsetWidth)) + 'px'; b.style.top = clamp(t, 0, Math.max(0, H - Math.min(b.offsetHeight, H))) + 'px';
-}
-function coOpen() {
-  if (!KL.cs) return; if (CO.step) { coClose(); return; }
-  OF.show = true; $('ofShow').checked = true; LS.set('qxPlShow', true); coGo(1);
-}
-function coClose() { CO.step = 0; const b = $('coBox'); if (b) b.hidden = true; ofCalc(); }
 function coPlace(k) {                                    // 還沒設：把線放在畫面上看得到的位置，讓你直接拉
   const P = ofPlan(); if (!P.E || OF.v[k] > 0) return;
   const y = KL.cs.priceToCoordinate(P.E), h = $('klChart').clientHeight, s = k === 'tp' ? 1 : -1;
@@ -4102,6 +4095,7 @@ async function coQuick() {                                // 空白鍵兩下：�
   qxToast(`✓ 已${type === 'LIMIT' ? '掛單' : '進場'}${dir > 0 ? '做多' : '做空'}，接著設定止盈止損`, true); coGo(2); setTimeout(bxPoll, 500);
 }
 function coPostSync() {                                   // 等 Bitunix 回報新持倉：拿到真的開倉價
+  if (CO.post && CO.post.id && BX.ok && !BX.pos.some(x => x.id === CO.post.id)) { CO.post = null; OF.v.tp = OF.v.sl = 0; ofSave(); if (CO.step) coClose(); else ofCalc(); qxToast('這筆倉位已經平掉，止盈止損設定已取消，可以重新下單', true); return; }
   if (!CO.post || CO.post.id) return; const p = BX.pos.find(x => x.sym === CO.post.sym && x.dir === CO.post.dir); if (!p) return;
   CO.post.id = p.id; CO.post.entry = p.entry; ofCalc(); if (CO.step) coLive();
 }
