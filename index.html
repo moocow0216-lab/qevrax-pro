@@ -3725,8 +3725,8 @@ function ofCalc() {
 function ofLines(P) {
   P = P || ofPlan(); const L = [];
   if (OF.show && P.E > 0 && (P.tp || P.sl || OF.type === 'LIMIT' || CO.step)) {
-    const lab = k => `${k === 'tp' ? '止盈' : '止損'} ${P[k + 'U'] == null ? '' : sgn(P[k + 'U']) + 'U '}${sgn(P[k + 'Roe'], 1)}%`;
-    L.push({ id: 'e', price: P.E, color: '#9aa0a8', style: 2, title: OF.type === 'LIMIT' ? '限價進場' : '市價進場' });
+    const lab = k => `預覽${k === 'tp' ? '止盈' : '止損'} ${P[k + 'U'] == null ? '' : sgn(P[k + 'U']) + 'U '}${sgn(P[k + 'Roe'], 1)}%`;
+    L.push({ id: 'e', price: P.E, color: '#9aa0a8', style: 2, title: OF.type === 'LIMIT' ? '預覽限價進場' : '預覽市價進場' });
     if (P.tp) L.push({ id: 'tp', price: P.tp, color: '#26a69a', width: 2, title: lab('tp') });
     if (P.sl) L.push({ id: 'sl', price: P.sl, color: '#ef5350', width: 2, title: lab('sl') });
   }
@@ -3926,7 +3926,7 @@ async function bxCancel(id, sym) {
 }
 function ofBind() {
   const sv = LS.get('qxPl2', null), old = LS.get('qxPl', {}); $('ofMgn').value = (sv ? sv.m : old.m) || ''; $('ofShow').checked = OF.show;
-  if (sv && sv.mode) { OF.m = sv.mode; OF.v = sv.v; } else { if (+old.tp) { OF.m.tp = 'u'; OF.v.tp = +old.tp; } if (+old.sl) { OF.m.sl = 'u'; OF.v.sl = +old.sl; } }
+  if (sv && sv.mode) { OF.m = sv.mode; OF.v = { tp: 0, sl: 0 }; } else {   }   // 止盈止損每次重新設定，避免上一單的線留在圖上
   const segs = (id, f) => $(id).onclick = e => { const b = e.target.closest('button'); if (!b) return; [...$(id).children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); f(b.dataset.v); ofCalc(); };
   segs('ofDir', v => { OF.dir = +v; for (const k of ['tp', 'sl']) if (OF.m[k] === 'px') { OF.v[k] = 0; } ofSave(); });   // 換方向：點位會在錯的那一邊，清掉
   segs('ofType', v => { OF.type = v; const lim = v === 'LIMIT'; $('ofPx').readOnly = !lim; $('ofLast').hidden = !lim; $('ofPxT').textContent = lim ? '限價進場點位' : '市價進場（即時）'; $('ofPx').value = lim ? (QX.px || '') : ''; if (lim) $('ofPx').focus(); });
