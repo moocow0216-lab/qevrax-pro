@@ -278,6 +278,12 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 .coquick{border:1px dashed rgba(201,165,90,.6);background:transparent;color:var(--gold2);border-radius:6px;padding:6px 8px;font-size:12.5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
 .coquick:hover{background:var(--gold-soft)}.coquick span{display:flex;gap:3px;align-items:center;color:var(--steel);font-size:11.5px}
 .copost{margin:0;background:rgba(38,166,154,.14);border:1px solid rgba(38,166,154,.5);color:#7ff0d6;border-radius:6px;padding:5px 8px;font-size:12px}
+.ctx{position:fixed;z-index:200;min-width:250px;background:var(--plate);border:1px solid var(--edge2);border-radius:9px;box-shadow:0 16px 44px rgba(0,0,0,.65);padding:5px;display:flex;flex-direction:column}
+.ctx .ch{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:5px 9px 7px;border-bottom:1px solid var(--edge);margin-bottom:3px}.ctx .ch b{font-size:14px}.ctx .ch span{font-size:11.5px;color:var(--dim)}
+.ctx button{display:grid;grid-template-columns:18px 1fr;align-items:center;gap:0 6px;text-align:left;border:0;background:transparent;color:var(--ink);padding:6px 9px;border-radius:6px;cursor:pointer;font-size:13px}
+.ctx button:hover:not([disabled]),.ctx button:focus-visible{background:var(--gold-soft);outline:none}.ctx button[disabled]{opacity:.5;cursor:default}
+.ctx button i{font-style:normal;font-size:12px;color:var(--steel)}.ctx button i.up{color:var(--up)}.ctx button i.dn{color:var(--dn)}
+.ctx button em,.ctx button small{grid-column:2;font-style:normal;font-size:11px;color:var(--dim)}.ctx .cw{color:#e3b866}
 .kl{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0;position:relative}
 .kltop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.klsym{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#2a2e39);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}.klsym b{font-weight:800}
 .kltf{display:flex;gap:2px;flex-wrap:wrap}.kltf button{border:0;background:transparent;color:var(--muted);padding:6px 9px;border-radius:6px;font-size:13px;cursor:pointer}.kltf button:hover{background:rgba(127,127,127,.12)}.kltf button[aria-pressed="true"]{color:#2962ff;background:rgba(41,98,255,.12);font-weight:700}
@@ -461,6 +467,7 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
         <select class="sel" id="hmWall" aria-label="強弱區要標幾個" title="買力、賣壓要各標幾個"></select>
         <button class="ibtn" id="hmZBtn" aria-pressed="false" aria-expanded="false" aria-controls="hmZones" title="看買力、賣壓的完整排行">排行 ▾</button>
         <select class="sel" id="hmPal" aria-label="泡泡配色" title="泡泡配色"></select>
+        <select class="sel" id="hmLab" aria-label="泡泡上的數字" title="泡泡上的數字（幣）"></select>
         <select class="sel" id="hmMinB" aria-label="成交泡泡門檻" title="成交多大才畫泡泡"></select>
         <span class="note" id="hmNote"></span>
         <span class="spacer"></span>
@@ -3030,7 +3037,7 @@ const HM_GPX = { auto: 4, fine: 2, mid: 7, coarse: 12 };
 const HM_MINB = [['a10', '泡泡 自動（最大 10%）'], ['a25', '泡泡 自動（最大 25%）'], ['a50', '泡泡 自動（最大 50%）'], [10000, '泡泡 ≥ 1萬'], [50000, '泡泡 ≥ 5萬'], [100000, '泡泡 ≥ 10萬'], [250000, '泡泡 ≥ 25萬'], [1000000, '泡泡 ≥ 100萬']];
 const HM_PAL_OK = v => ['qx', 'ice', 'mono', 'std'].includes(v) ? v : 'qx';
 const HM = {
-  tf: LS.get('qxHmTf', 1), pal: HM_PAL_OK(LS.get('qxHmPal', 'qx')), wallN: LS.get('qxHmWall', 3), walls: [], grp: HM_GPX[LS.get('qxHmGrp', 'auto')] ? LS.get('qxHmGrp', 'auto') : 'auto', minB: (LS.get('qxHmMinBv', 0) === 2 ? LS.get('qxHmMinB', 'a10') : (LS.set('qxHmMinBv', 2), LS.set('qxHmMinB', 'a10'), 'a10')),
+  tf: LS.get('qxHmTf', 1), lab: ['off', 'vol', 'delta', 'both'].includes(LS.get('qxHmLab', '')) ? LS.get('qxHmLab', 'both') : 'both', pal: HM_PAL_OK(LS.get('qxHmPal', 'qx')), wallN: LS.get('qxHmWall', 3), walls: [], grp: HM_GPX[LS.get('qxHmGrp', 'auto')] ? LS.get('qxHmGrp', 'auto') : 'auto', minB: (LS.get('qxHmMinBv', 0) === 2 ? LS.get('qxHmMinB', 'a10') : (LS.set('qxHmMinBv', 2), LS.set('qxHmMinB', 'a10'), 'a10')),
   bids: new Map(), asks: new Map(), synced: false, buf: [], snapId: 0, lastU: null, snapBusy: false,
   tick: 0, NB: 2000, raw: [], mins: [], cur: null, last: 0, t0: 0,
   colW: LS.get('qxHmColW', 6), off: 0, follow: true, pc: 0, span: 0, hover: null, dirty: true, cache: null, drag: null, geo: null
@@ -3095,15 +3102,16 @@ function hmDepth(d) {
   hmApply(d);
 }
 function hmTrade(d) {
-  const p = +d.p, usd = p * +d.q, c = HM.cur || (HM.cur = { buy: 0, sell: 0, bvw: 0, svw: 0, o: p, hi: p, lo: p, last: p });
-  if (d.m) { c.sell += usd; c.svw += p * usd; } else { c.buy += usd; c.bvw += p * usd; }
+  const p = +d.p, qty = +d.q, usd = p * qty, c = HM.cur || (HM.cur = { buy: 0, sell: 0, bvw: 0, svw: 0, bq: 0, sq: 0, o: p, hi: p, lo: p, last: p });
+  if (d.m) { c.sell += usd; c.svw += p * usd; c.sq += qty; } else { c.buy += usd; c.bvw += p * usd; c.bq += qty; }
   if (p > c.hi) c.hi = p; if (p < c.lo) c.lo = p; c.last = p; HM.last = p;
 }
 function hmAddInto(acc, base, col, w) { const sh = col.base - base, q = col.q, n = q.length; for (let i = 0; i < n; i++) { const v = q[i]; if (v) { const j = i + sh; if (j >= 0 && j < n) acc[j] += v * w; } } }
+const hmBQ = c => c.bq != null ? c.bq : (c.buy && c.bvw ? c.buy * c.buy / c.bvw : 0), hmSQ = c => c.sq != null ? c.sq : (c.sell && c.svw ? c.sell * c.sell / c.svw : 0);   // 舊資料沒有幣量：用成交額 ÷ 均價估
 function hmAgg(cols, t) {                                // 把好幾欄合成一欄（掛單取平均、成交加總、K 棒取開高低收）
-  const F = cols[0], L = cols[cols.length - 1], acc = new Float32Array(HM.NB), w = 1 / cols.length; let buy = 0, sell = 0, bvw = 0, svw = 0, hi = -Infinity, lo = Infinity;
-  for (const c of cols) { hmAddInto(acc, L.base, c, w); buy += c.buy; sell += c.sell; bvw += c.bvw; svw += c.svw; if (c.hi > hi) hi = c.hi; if (c.lo < lo) lo = c.lo; }
-  return { t, base: L.base, q: acc, buy, sell, bvw, svw, o: F.o, hi, lo, last: L.last };
+  const F = cols[0], L = cols[cols.length - 1], acc = new Float32Array(HM.NB), w = 1 / cols.length; let buy = 0, sell = 0, bvw = 0, svw = 0, bq = 0, sq = 0, hi = -Infinity, lo = Infinity;
+  for (const c of cols) { hmAddInto(acc, L.base, c, w); buy += c.buy; sell += c.sell; bvw += c.bvw; svw += c.svw; bq += hmBQ(c); sq += hmSQ(c); if (c.hi > hi) hi = c.hi; if (c.lo < lo) lo = c.lo; }
+  return { t, base: L.base, q: acc, buy, sell, bvw, svw, bq, sq, o: F.o, hi, lo, last: L.last };
 }
 function hmRows(c, G) {                                  // 這一欄照價格級距合併好的列（算一次就存起來，拖曳時不用重算）
   if (c.rsG === G) return c.rs;
@@ -3119,7 +3127,7 @@ function hmSample() {                                    // 每秒：把整本�
   for (const [p, v] of HM.bids) { const i = Math.floor(p / tk) - base; if (i >= 0 && i < NB) q[i] += p * v; }
   for (const [p, v] of HM.asks) { const i = Math.floor(p / tk) - base; if (i >= 0 && i < NB) q[i] += p * v; }
   const R = HM.raw, prev = R[R.length - 1], pc = prev ? prev.last : HM.last;   // 這一秒沒有成交：K 棒＝上一根的收盤（一字線）
-  const col = { t, base, q, buy: c ? c.buy : 0, sell: c ? c.sell : 0, bvw: c ? c.bvw : 0, svw: c ? c.svw : 0, o: c ? c.o : pc, hi: c ? c.hi : pc, lo: c ? c.lo : pc, last: c ? c.last : pc };
+  const col = { t, base, q, buy: c ? c.buy : 0, sell: c ? c.sell : 0, bvw: c ? c.bvw : 0, svw: c ? c.svw : 0, bq: c ? c.bq : 0, sq: c ? c.sq : 0, o: c ? c.o : pc, hi: c ? c.hi : pc, lo: c ? c.lo : pc, last: c ? c.last : pc };
   if (prev && Math.floor(prev.t / 60) !== Math.floor(t / 60)) { const m0 = Math.floor(prev.t / 60) * 60, mc = []; for (let i = R.length - 1; i >= 0 && R[i].t >= m0; i--) mc.unshift(R[i]); if (mc.length) { { const mcol = hmAgg(mc, m0); HM.mins.push(mcol); hdbSave(QX.sym, mcol); } if (HM.mins.length > 1440) HM.mins.shift(); HM.minVer = (HM.minVer || 0) + 1; } }
   R.push(col); if (R.length > 3600) R.shift();
   hmWalls();
@@ -3201,9 +3209,9 @@ function hmCols() {                                      // 依照選的時間�
   if (tf >= 60 && HZ.k1 && HZ.sym === QX.sym && cols.length) {
     const first = cols[0].t, Z0 = hmCols.zero && hmCols.zero.length === HM.NB ? hmCols.zero : (hmCols.zero = new Float32Array(HM.NB)), H = [];
     let grp = null;
-    for (const k of HZ.k1) { const t = k[0] / 1000; if (t >= first) break; const g0 = Math.floor(t / tf) * tf, o = +k[1], h = +k[2], l = +k[3], c = +k[4], qv = +k[7], tb = +k[10], mid = (h + l) / 2;
-      if (!grp || grp.t !== g0) { grp = { t: g0, base: cols[0].base, q: Z0, buy: 0, sell: 0, bvw: 0, svw: 0, o, hi: h, lo: l, last: c, hist: true }; H.push(grp); }
-      grp.buy += tb; grp.sell += qv - tb; grp.bvw += mid * tb; grp.svw += mid * (qv - tb); grp.hi = Math.max(grp.hi, h); grp.lo = Math.min(grp.lo, l); grp.last = c; }
+    for (const k of HZ.k1) { const t = k[0] / 1000; if (t >= first) break; const g0 = Math.floor(t / tf) * tf, o = +k[1], h = +k[2], l = +k[3], c = +k[4], qv = +k[7], tb = +k[10], bv = +k[5], tbb = +k[9], mid = (h + l) / 2;
+      if (!grp || grp.t !== g0) { grp = { t: g0, base: cols[0].base, q: Z0, buy: 0, sell: 0, bvw: 0, svw: 0, bq: 0, sq: 0, o, hi: h, lo: l, last: c, hist: true }; H.push(grp); }
+      grp.bq += tbb; grp.sq += bv - tbb; grp.buy += tb; grp.sell += qv - tb; grp.bvw += mid * tb; grp.svw += mid * (qv - tb); grp.hi = Math.max(grp.hi, h); grp.lo = Math.min(grp.lo, l); grp.last = c; }
     if (H.length && H[H.length - 1].t === Math.floor(first / tf) * tf) H.pop();   // 跟第一欄同一根的不要重複
     cols = H.concat(cols);
   }
@@ -3233,6 +3241,26 @@ function hmBubble(buy) {
   g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(R - r * 0.32, R - r * 0.45, r * 0.32, r * 0.18, -0.5, 0, Math.PI * 2); g.fill();   // 高光
   return (HM_BUB[k] = c);
 }
+
+/* 泡泡上的數字：成交量（幣）、買賣差（幣）。字的大小跟著泡泡，放不下就不寫；大泡泡先寫，字疊在一起的小泡泡跳過 */
+const fQty = v => { const a = Math.abs(v); return a >= 1e6 ? (a / 1e6).toFixed(2) + 'M' : a >= 1e4 ? (a / 1e3).toFixed(1) + 'K' : a >= 1000 ? (a / 1e3).toFixed(2) + 'K' : a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a.toFixed(3); };
+function hmBubbleText(g, BB, mode) {
+  const done = [], hit = (x0, y0, x1, y1) => done.some(b => x0 < b[2] && x1 > b[0] && y0 < b[3] && y1 > b[1]);
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  for (const B of BB.slice().sort((a, b) => b.r - a.r)) {
+    const bq = hmBQ(B.c), sq = hmSQ(B.c), vol = fQty(bq + sq), dlt = (bq - sq >= 0 ? '+' : '−') + fQty(bq - sq);
+    let lines = mode === 'vol' ? [vol] : mode === 'delta' ? [dlt] : [vol, dlt], fs = 0;
+    const fit = L => { for (let s = clamp(Math.floor(B.r * (L.length > 1 ? 0.5 : 0.62)), 9, 15); s >= 9; s--) { g.font = `700 ${s}px "IBM Plex Sans",sans-serif`; const w = Math.max(...L.map(t => g.measureText(t).width)); if (w <= B.r * 1.85 && s * L.length * 1.05 <= B.r * 1.75) return s; } return 0; };
+    fs = fit(lines); if (!fs && lines.length > 1) { lines = [mode === 'both' ? vol : lines[0]]; fs = fit(lines); }   // 兩行放不下：只寫成交量
+    if (!fs) continue;
+    g.font = `700 ${fs}px "IBM Plex Sans",sans-serif`; const w = Math.max(...lines.map(t => g.measureText(t).width)), h = fs * 1.1 * lines.length;
+    if (hit(B.x - w / 2, B.y - h / 2, B.x + w / 2, B.y + h / 2)) continue; done.push([B.x - w / 2 - 2, B.y - h / 2 - 1, B.x + w / 2 + 2, B.y + h / 2 + 1]);
+    lines.forEach((t, i) => { const y = B.y + (i - (lines.length - 1) / 2) * fs * 1.1, isD = t === dlt;
+      g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.65)'; g.strokeText(t, B.x, y);
+      g.fillStyle = isD ? (bq >= sq ? '#d6ffe9' : '#ffdbe0') : '#ffffff'; g.fillText(t, B.x, y); });
+  }
+  g.restore();
+}
 function hmGeo(W, H) { const pw = W - HM_AX - HM_PF, ph = H - HM_TB; return { pw, ph, ax: pw + HM_PF }; }
 function hmDraw() {
   const cv = $('hmCv'); if (!cv.offsetParent) return;
@@ -3245,11 +3273,11 @@ function hmDraw() {
   // 正在形成的那一根：用目前這一秒的成交即時長出來，不用等下一秒
   let cols, frac;
   if (HM.tf === 1) {
-    const L = base[base.length - 1], pc = L.last, f = { t: L.t + 1, base: L.base, q: L.q, rs: L.rs, rs0: L.rs0, rsG: L.rsG, buy: cur ? cur.buy : 0, sell: cur ? cur.sell : 0, bvw: cur ? cur.bvw : 0, svw: cur ? cur.svw : 0, o: cur ? cur.o : pc, hi: cur ? cur.hi : pc, lo: cur ? cur.lo : pc, last: cur ? cur.last : pc, live: true };
+    const L = base[base.length - 1], pc = L.last, f = { t: L.t + 1, base: L.base, q: L.q, rs: L.rs, rs0: L.rs0, rsG: L.rsG, buy: cur ? cur.buy : 0, sell: cur ? cur.sell : 0, bvw: cur ? cur.bvw : 0, svw: cur ? cur.svw : 0, bq: cur ? cur.bq : 0, sq: cur ? cur.sq : 0, o: cur ? cur.o : pc, hi: cur ? cur.hi : pc, lo: cur ? cur.lo : pc, last: cur ? cur.last : pc, live: true };
     cols = base.concat([f]); frac = clamp(nowS - L.t, 0, 1);
   } else {
     const L = base[base.length - 1], f = Object.assign({}, L, { live: true });
-    if (cur) { f.buy = L.buy + cur.buy; f.sell = L.sell + cur.sell; f.bvw = L.bvw + cur.bvw; f.svw = L.svw + cur.svw; f.hi = Math.max(L.hi, cur.hi); f.lo = Math.min(L.lo, cur.lo); f.last = cur.last; }
+    if (cur) { f.buy = L.buy + cur.buy; f.sell = L.sell + cur.sell; f.bq = hmBQ(L) + cur.bq; f.sq = hmSQ(L) + cur.sq; f.bvw = L.bvw + cur.bvw; f.svw = L.svw + cur.svw; f.hi = Math.max(L.hi, cur.hi); f.lo = Math.min(L.lo, cur.lo); f.last = cur.last; }
     cols = base.slice(0, -1).concat([f]); frac = clamp((nowS - L.t) / HM.tf, 0, 1);
   }
   // 時間軸平滑往左移：最新那一欄從右邊慢慢滑進來（往回看的時候畫面不動）
@@ -3304,15 +3332,17 @@ function hmDraw() {
     }
     // 3) 成交泡泡：畫在那根 K 棒上（位置＝成交均價）
     let mx = 0; for (let j = 0; j < nC; j++) { const c = cols[start + j]; mx = Math.max(mx, c.buy + c.sell); }
-    const rMax = clamp(cw * 2.2, 8, 22);
+    const LB = HM.lab, rMax = LB !== 'off' ? clamp(cw * 3, 14, 30) : clamp(cw * 2.2, 8, 22);   // 要寫數字時泡泡大一點，字才放得下
     // 自動門檻：照這個幣最近的成交量決定，不管換到哪個幣都有泡泡
     let minB = +HM.minB; if (typeof HM.minB === 'string') { const ck = `${HM.ver}|${HM.tf}|${HM.minB}|${cols.length}`;
       if (hmDraw.mbk !== ck) { const n = Math.min(cols.length, 600), v = []; for (let i = cols.length - n; i < cols.length; i++) { const x = cols[i].buy + cols[i].sell; if (x > 0) v.push(x); } v.sort((a, b) => a - b);
         const q = { a10: 0.9, a25: 0.75, a50: 0.5 }[HM.minB] || 0.9; hmDraw.mb = v.length ? v[Math.min(v.length - 1, Math.floor(v.length * q))] : Infinity; hmDraw.mbk = ck; }
       minB = hmDraw.mb; }
+    const BB = [];
     if (mx) for (let j = 0; j < nC; j++) { const c = cols[start + j], v = c.buy + c.sell; if (v < minB || !v) continue;
       const vw = (c.bvw + c.svw) / v, x = xOf(start + j) + cw / 2, y = yOf(vw), r = 2.5 + (rMax - 2.5) * Math.sqrt(v / mx);
-      const R2 = r * 112 / 94; g.globalAlpha = 0.88; g.drawImage(hmBubble(c.buy >= c.sell), x - R2, y - R2, R2 * 2, R2 * 2); g.globalAlpha = 1; }
+      const R2 = r * 112 / 94; g.globalAlpha = 0.88; g.drawImage(hmBubble(c.buy >= c.sell), x - R2, y - R2, R2 * 2, R2 * 2); g.globalAlpha = 1; BB.push({ x, y, r, c }); }
+    if (LB !== 'off' && BB.length) hmBubbleText(g, BB, LB);
   }
   { let fi = -1; for (let i = 0; i < cols.length; i++) if (!cols[i].hist) { fi = i; break; }   // 補上的 K 棒和有掛單紀錄的分界
     if (fi > 0) { const x = Math.round(xOf(fi)) + 0.5; if (x > 40 && x < pw) { g.strokeStyle = 'rgba(201,165,90,.55)'; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, ph); g.stroke(); g.setLineDash([]);
@@ -3352,9 +3382,9 @@ function hmDraw() {
     g.fillStyle = '#2a2f37'; g.fillRect(ax + 1, hv.y - 9, HM_AX - 2, 18); g.fillStyle = '#ebe7df'; g.fillText(klFmt(p), ax + 6, hv.y + 4);
     if (c) { const rs = hmRows(c, G), ri = Math.floor(p / cell) - c.rs0, s = ri >= 0 && ri < rs.length ? rs[ri] : 0;
       const tl = hms(c.t * 1000, HM.tf < 60), tlw = g.measureText(tl).width + 12, tlx = clamp(hv.x - tlw / 2, 0, pw - tlw); g.fillStyle = '#2a2f37'; g.fillRect(tlx, ph + 2, tlw, HM_TB - 3); g.fillStyle = '#ebe7df'; g.fillText(tl, tlx + 6, ph + 15);
-      const L0 = `開 ${klFmt(c.o)}  高 ${klFmt(c.hi)}  低 ${klFmt(c.lo)}  收 ${klFmt(c.last)}`, L1 = `這個價位掛單 $${fUsd(s)}`, L2 = `主動買 $${fUsd(c.buy)}　主動賣 $${fUsd(c.sell)}`;
-      const tw = Math.max(g.measureText(L0).width, g.measureText(L1).width, g.measureText(L2).width) + 16, tx = hv.x + 14 + tw > pw ? hv.x - tw - 10 : hv.x + 14, ty = Math.max(4, hv.y - 58);
-      g.fillStyle = 'rgba(8,10,14,.92)'; g.fillRect(tx, ty, tw, 53); g.strokeStyle = '#2a2f37'; g.strokeRect(tx + .5, ty + .5, tw - 1, 52);
+      const L0 = `開 ${klFmt(c.o)}  高 ${klFmt(c.hi)}  低 ${klFmt(c.lo)}  收 ${klFmt(c.last)}`, L1 = `這個價位掛單 $${fUsd(s)}`, L2 = `主動買 $${fUsd(c.buy)}　主動賣 $${fUsd(c.sell)}`, cq = hmBQ(c) - hmSQ(c), L3 = `成交量 ${fQty(hmBQ(c) + hmSQ(c))} ${QX.sym.replace(/USDT$/, '')}　買賣差 ${cq >= 0 ? '+' : '−'}${fQty(cq)}`;
+      const tw = Math.max(g.measureText(L0).width, g.measureText(L1).width, g.measureText(L2).width, g.measureText(L3).width) + 16, tx = hv.x + 14 + tw > pw ? hv.x - tw - 10 : hv.x + 14, ty = Math.max(4, hv.y - 72);
+      g.fillStyle = 'rgba(8,10,14,.92)'; g.fillRect(tx, ty, tw, 68); g.strokeStyle = '#2a2f37'; g.strokeRect(tx + .5, ty + .5, tw - 1, 67); g.fillStyle = cq >= 0 ? '#9ff0cf' : '#ffb3bd'; g.fillText(L3, tx + 8, ty + 60);
       g.fillStyle = c.last >= c.o ? '#2ee6b0' : '#ff4d6a'; g.fillText(L0, tx + 8, ty + 15); g.fillStyle = '#ebe7df'; g.fillText(L1, tx + 8, ty + 30); { const pal = HM_PAL[HM.pal] || HM_PAL.qx, a = `主動買 $${fUsd(c.buy)}`; g.fillStyle = pal[1][1]; g.fillText(a, tx + 8, ty + 45); g.fillStyle = pal[2][1]; g.fillText(`　主動賣 $${fUsd(c.sell)}`, tx + 8 + g.measureText(a).width, ty + 45); } }
   }
   $('hmFollow').hidden = HM.follow && Math.abs(HM.off) < 0.5;
@@ -3402,6 +3432,7 @@ function hmBind() {
     else if (z === 'time') { HM.colW = 6; LS.set('qxHmColW', 6); }
     else hmHome(); HM.dirty = true; });
   $('hmFollow').onclick = hmHome;
+  cv.addEventListener('contextmenu', e => { const G = HM.geo; if (!G) return; const r = cv.getBoundingClientRect(), y = e.clientY - r.top; if (y > G.ph) return; ctxOpen(e, G.pTop - y / G.ph * HM.span); });
   $('hmTf').innerHTML = HM_TF.map(([v, n]) => `<option value="${v}">每根 ${n}</option>`).join(''); $('hmTf').value = String(HM.tf);
   $('hmTf').onchange = e => { HM.tf = +e.target.value; LS.set('qxHmTf', HM.tf); HM.agg = null; HM.off = 0; HM.dirty = true; };
   $('hmGrp').innerHTML = HM_GRP.map(([v, n]) => `<option value="${v}">${n}</option>`).join(''); $('hmGrp').value = String(HM.grp);
@@ -3417,6 +3448,8 @@ function hmBind() {
   $('hmZones').addEventListener('click', e => { const b = e.target.closest('[data-zp]'); if (!b) return; HM.follow = false; HM.pc = +b.dataset.zp; HM.dirty = true; HZ.list = false; zoneList(); });
   $('hmZones').addEventListener('pointerdown', e => e.stopPropagation()); $('hmZones').addEventListener('wheel', e => e.stopPropagation());
   $('hmHint').addEventListener('click', e => { const b = e.target.closest('[data-tf]'); if (!b) return; HM.tf = +b.dataset.tf; LS.set('qxHmTf', HM.tf); $('hmTf').value = String(HM.tf); HM.agg = null; HM.off = 0; HM.dirty = true; });
+  $('hmLab').innerHTML = [['both', '泡泡數字：量＋買賣差'], ['vol', '泡泡數字：成交量'], ['delta', '泡泡數字：買賣差'], ['off', '泡泡數字：不顯示']].map(([v, n]) => `<option value="${v}">${n}</option>`).join(''); $('hmLab').value = HM.lab;
+  $('hmLab').onchange = e => { HM.lab = e.target.value; LS.set('qxHmLab', HM.lab); HM.dirty = true; };
   $('hmMinB').onchange = e => { HM.minB = /^a/.test(e.target.value) ? e.target.value : +e.target.value; LS.set('qxHmMinB', HM.minB); HM.dirty = true; };
 }
 function hmHome() { HM.follow = true; HM.off = 0; HM.span = HM.span || (HM.last || 1) * 0.006; HM.dirty = true; }
@@ -3535,6 +3568,7 @@ function lqBind() {
   const up = () => { drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('pointerleave', () => { LQ.hover = null; LQ.dirty = true; });
   cv.addEventListener('dblclick', () => { LQ.view = null; LQ.dirty = true; });
+  cv.addEventListener('contextmenu', e => { if (!LQ.view) return; const r = cv.getBoundingClientRect(), pw = r.width - LQ_M.l - LQ_M.r, u = (e.clientX - r.left - LQ_M.l) / pw; if (u < 0 || u > 1) return; ctxOpen(e, LQ.view.lo + u * (LQ.view.hi - LQ.view.lo)); });
   $('lqRange').innerHTML = Object.entries(LQ_R).map(([k, v]) => `<button data-v="${k}" aria-pressed="${k === LQ.range}">${v[3]}</button>`).join('');
   $('lqRange').onclick = e => { const b = e.target.closest('button'); if (!b) return; LQ.range = b.dataset.v; LS.set('qxLqR', LQ.range); [...$('lqRange').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); LQ.view = null; $('lqMsg').hidden = false; $('lqMsg').textContent = '計算中…'; LQ.pos = []; lqLoad(); };
   $('lqEvery').innerHTML = LQ_E.map(([v, n]) => `<option value="${v}">${n}</option>`).join(''); $('lqEvery').value = String(LQ.every);
@@ -3894,7 +3928,7 @@ async function ofSubmit(skipCfm, noTpsl) {
     if (P.sl && !noTpsl) Object.assign(body, { slPrice: P.sl.toFixed(qp), slStopType: STOPT(), slOrderType: 'MARKET' });
     if (BX.cfm && skipCfm !== true) {
       $('cfmBody').innerHTML = [['合約', sym], ['方向', `<b class="${dir > 0 ? 'up' : 'dn'}">${dir > 0 ? '做多' : '做空'}</b>`], ['類型', OF.type === 'LIMIT' ? '限價 ' + body.price : `市價（約 ${klFmt(P.E)}）`], ['保證金', `${f2(P.m)} U・${lev}x ${mode === 'CROSS' ? '全倉' : '逐倉'}`], ['數量', `${P.q}（名目約 $${f2(P.q * P.E)}）`],
-        ['止盈', P.tp ? `${body.tpPrice}　<b class="up">${sgn(P.tpU)} U・${sgn(P.tpRoe, 1)}%</b>` : '不設'], ['止損', P.sl ? `${body.slPrice}　<b class="dn">${sgn(P.slU)} U・${sgn(P.slRoe, 1)}%</b>` : '不設']].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('') + '<dt></dt><dd style="font-size:11.5px;color:var(--dim)">盈虧金額不含手續費、資金費</dd>';
+        ['止盈', P.tp && !noTpsl ? `${body.tpPrice}　<b class="up">${sgn(P.tpU)} U・${sgn(P.tpRoe, 1)}%</b>` : '不設'], ['止損', P.sl && !noTpsl ? `${body.slPrice}　<b class="dn">${sgn(P.slU)} U・${sgn(P.slRoe, 1)}%</b>` : '不設']].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('') + '<dt></dt><dd style="font-size:11.5px;color:var(--dim)">盈虧金額不含手續費、資金費</dd>';
       const ok = await new Promise(res => { const d = $('cfmDlg'); d.returnValue = ''; d.onclose = () => res(d.returnValue === 'yes'); d.showModal(); }); if (!ok) return;
     }
     ofMsg('送出中…'); $('ofGo').disabled = true;
@@ -4145,6 +4179,46 @@ function qxPickSet(price) {
   qxToast(bad ? `${PICK_N[k]} ${klFmt(p)} 在進場價的另一邊，方向反了` : `✓ ${PICK_N[k]}設在 ${klFmt(p)}${k !== 'e' && P[k + 'Roe'] != null ? `（${sgn(P[k + 'Roe'], 1)}%）` : ''}`, !bad);
   if (!was && CO.step) coLive();
 }
+
+/* ---------- 右鍵：在任何一張圖上按右鍵，直接用那個價格掛限價單 ---------- */
+function ctxClose() { const m = $('ctxMenu'); if (m) m.hidden = true; }
+function ctxOpen(e, price) {
+  if (!(price > 0)) return; e.preventDefault(); e.stopPropagation();
+  const qp = ofPair() ? +ofPair().quotePrecision || 2 : 2, p = +price.toFixed(qp), now = QX.px || QX.mark, m0 = +$('ofMgn').value, lev = +$('ofLev').value || 1, coin = QX.sym.replace(/USDT$/, '');
+  let m = $('ctxMenu'); if (!m) { m = document.createElement('div'); m.id = 'ctxMenu'; m.className = 'ctx'; m.setAttribute('role', 'menu'); document.body.appendChild(m);
+    m.addEventListener('click', ev => { const b = ev.target.closest('[data-ca]'); if (!b || b.disabled) return; const a = b.dataset.ca, px = +m.dataset.p; ctxClose();
+      if (a === 'L' || a === 'S') ctxPlace(a === 'L' ? 1 : -1, px); else if (a === 'W') ctxWizard(px); else if (a === 'set') { setOpen(); } }); }
+  m.dataset.p = p;
+  const diff = now ? (p / now - 1) * 100 : 0, noM = !(m0 > 0);
+  const warn = d => now && (d > 0 ? p >= now : p <= now) ? '<small class="cw">價格在現價另一邊，會馬上成交</small>' : '';
+  const wDir = now && p > now ? -1 : 1;
+  m.innerHTML = `<div class="ch"><b>${klFmt(p)}</b><span>${now ? `距離現價 ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%` : ''}</span></div>
+    ${!BX.key ? '<button data-ca="set" role="menuitem">先設定 Bitunix API</button>' : `
+    <button data-ca="L" role="menuitem"${noM ? ' disabled' : ''}><i class="up">●</i>限價做多 ${coin}<em>${noM ? '先在下單欄填每筆金額' : `${m0}U × ${lev}x`}</em>${warn(1)}</button>
+    <button data-ca="S" role="menuitem"${noM ? ' disabled' : ''}><i class="dn">●</i>限價做空 ${coin}<em>${noM ? '先在下單欄填每筆金額' : `${m0}U × ${lev}x`}</em>${warn(-1)}</button>
+    <button data-ca="W" role="menuitem"><i>⌨</i>先設止盈止損再掛（${wDir > 0 ? '做多' : '做空'}）<em>Ctrl+H 面板</em></button>`}`;
+  m.hidden = false; const W = m.offsetWidth, H = m.offsetHeight;
+  m.style.left = Math.min(e.clientX, innerWidth - W - 6) + 'px'; m.style.top = Math.min(e.clientY, innerHeight - H - 6) + 'px';
+  const f = m.querySelector('button:not([disabled])'); if (f) f.focus();
+}
+function ctxSetLimit(dir, p) {
+  OF.dir = dir; [...$('ofDir').children].forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.v === dir)));
+  if (OF.type !== 'LIMIT') $('ofType').querySelector('[data-v="LIMIT"]').click();
+  $('ofPx').value = p; ofDropStale(); ofCalc(); ofSave();
+}
+async function ctxPlace(dir, p) {
+  ctxSetLimit(dir, p);
+  const ok = await ofSubmit(false, true);                // 照「下單前再確認一次」的設定；不帶止盈止損
+  if (ok) qxToast(`✓ 已掛限價${dir > 0 ? '做多' : '做空'} ${klFmt(p)}`, true); else if ($('ofMsg').classList.contains('err')) qxToast($('ofMsg').textContent, false);
+}
+function ctxWizard(p) {
+  const now = QX.px || QX.mark; ctxSetLimit(now && p > now ? -1 : 1, p);
+  if (CO.step) coClose(); coOpen(); if (+$('ofMgn').value > 0) coGo(2);
+}
+function ctxBindAll() {
+  for (const C of qxCharts()) { if (C.box.dataset.qxctx) continue; C.box.dataset.qxctx = '1';
+    C.box.addEventListener('contextmenu', e => { const r = C.el.getBoundingClientRect(), y = e.clientY - r.top; if (e.clientX - r.left > C.el.clientWidth - (C.ch.priceScale('right').width() || 60)) return; ctxOpen(e, C.cs.coordinateToPrice(y)); }); }
+}
 /* ---------- 視窗：選擇四格要顯示哪幾個，沒選的隱藏，剩下的自動放大 ---------- */
 const VW = Object.assign({ kt: true, kb: true, hm: true, lq: true }, LS.get('qxView', {}));
 function viewApply() {
@@ -4222,8 +4296,10 @@ function loop() {
   $('dockBtn').onclick = () => dockSet($('dock').hidden); $('dkClose').onclick = () => dockSet(false);
   $('tkSym').onclick = e => { e.stopPropagation(); if ($('klPick')) klPickOpen($('tkSym'), null); };
   hmBind(); lqBind(); ofBind(); setBind(); viewBind();
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#ctxMenu')) ctxClose(); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') ctxClose(); }); addEventListener('blur', ctxClose); addEventListener('resize', ctxClose);
   new ResizeObserver(() => { HM.dirty = LQ.dirty = true; }).observe(document.querySelector('.stage'));
-  const tickSec = () => { hmSample(); try { ofDragBind(); xhBind(); } catch (e) {} setTimeout(tickSec, 1000 - Date.now() % 1000 + 5); }; setTimeout(tickSec, 1000 - Date.now() % 1000 + 5);
+  const tickSec = () => { hmSample(); try { ofDragBind(); xhBind(); ctxBindAll(); } catch (e) {} setTimeout(tickSec, 1000 - Date.now() % 1000 + 5); }; setTimeout(tickSec, 1000 - Date.now() % 1000 + 5);
   try { const s = JSON.parse(sessionStorage.getItem('qxApiS') || 'null'); if (s && s.k) { BX.key = s.k; BX.secret = s.s; } } catch (e) {}
   bxStart(); lqTimer(); requestAnimationFrame(loop); setInterval(() => { if (!document.hidden) vpLoad(); }, 60000);
   klInit().then(() => { const pk = $('klPick'); if (pk) document.querySelector('.tick').appendChild(pk); if (!QX.sym) qxSym(KL.sym); ofDragBind(); xhBind(); ofCalc(); tpBind(); });
