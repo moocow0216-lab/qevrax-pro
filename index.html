@@ -275,6 +275,9 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
 .hmz .ze{margin:2px 4px;color:var(--dim);font-size:11px}.hmz .zn{margin:4px 4px 0;color:var(--dim);font-size:10.5px}
 .hmhint{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:10px;white-space:nowrap;background:rgba(5,9,18,.92);border:1px solid rgba(201,165,90,.5);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--steel);max-width:calc(100% - 140px)}
 .hmhint button{flex:none;border:1px solid var(--gold);background:var(--gold-soft);color:var(--gold2);border-radius:5px;padding:3px 8px;font-size:12px;cursor:pointer}
+.coquick{border:1px dashed rgba(201,165,90,.6);background:transparent;color:var(--gold2);border-radius:6px;padding:6px 8px;font-size:12.5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.coquick:hover{background:var(--gold-soft)}.coquick span{display:flex;gap:3px;align-items:center;color:var(--steel);font-size:11.5px}
+.copost{margin:0;background:rgba(38,166,154,.14);border:1px solid rgba(38,166,154,.5);color:#7ff0d6;border-radius:6px;padding:5px 8px;font-size:12px}
 .kl{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0;position:relative}
 .kltop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.klsym{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#2a2e39);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}.klsym b{font-weight:800}
 .kltf{display:flex;gap:2px;flex-wrap:wrap}.kltf button{border:0;background:transparent;color:var(--muted);padding:6px 9px;border-radius:6px;font-size:13px;cursor:pointer}.kltf button:hover{background:rgba(127,127,127,.12)}.kltf button[aria-pressed="true"]{color:#2962ff;background:rgba(41,98,255,.12);font-weight:700}
@@ -513,6 +516,7 @@ kbd{font:600 10.5px "IBM Plex Sans",sans-serif;border:1px solid var(--edge2);bor
             <div class="plv" id="ofSlV"></div>
           </div>
           <div class="sum" id="ofSum"></div>
+          <label class="fld"><span>止盈止損觸發依據</span><div class="inp"><select id="ofStopT" style="flex:1"><option value="LAST_PRICE">最新成交價（跟 K 線比較接近）</option><option value="MARK_PRICE">標記價格（比較不會被插針掃到）</option></select></div></label>
           <label class="chk2"><input type="checkbox" id="ofShow"> 在主圖顯示止盈止損線（可以直接拖曳）</label>
           <button class="gobtn b" id="ofGo" type="button">做多</button>
           <button class="cobtn" id="ofCo" type="button">在 K 線圖上下單<kbd>Ctrl</kbd>+<kbd>H</kbd></button>
@@ -1236,7 +1240,8 @@ function kdPosDraw(g, d, a, sel) {
   const m = KD.mouse, hov = m && m.x >= x0 && m.x <= x0 + wd && m.y >= Math.min(ye, yt, ys) - 6 && m.y <= Math.max(ye, yt, ys) + 6;
   const dec = (String(klFmt(C.e)).split('.')[1] || '').length, fo = v => v.toFixed(dec), on = k2 => (d.posSt || KD_POS_DEF).includes(k2), cmp = d.statCmp !== false, f = v => klFmt(v), sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2), n0 = v => Math.round(v).toLocaleString('en-US');
   let tpL, slL, mid;
-  if (sel || hov || d.statAlw) {
+  const showLab = sel || d.statAlw;                       // 沒點選就不顯示標籤（只留框和價格軸上的價格）
+  if (showLab && d.statDet) {
     const side = (pfx, off, pct, tk, amt, pl, nm) => { const P1 = []; if (on(pfx + 'Off')) P1.push(fo(off)); if (on(pfx + 'Pct')) P1.push(`(${pct.toFixed(2)}%)`); if (on(pfx + 'Tick')) P1.push(n0(tk));
       const extra = []; if (on(pfx + 'Amt')) extra.push(`金額：${amt.toFixed(2)}`); if (on(pfx + 'PL')) extra.push(`帳戶 ${pl}%`);
       if (cmp) return [`${nm}：${P1.join(' ')}${P1.length && extra.length ? '，' : ''}${extra.join('，')}`];
@@ -1245,9 +1250,9 @@ function kdPosDraw(g, d, a, sel) {
     slL = side('sl', C.slOff, C.slPct, C.slTick, C.slAmt, (-C.slAmt / C.acct * 100).toFixed(2), '停損');
     const M = []; if (on('pnl')) M.push(`${C.state === 'tp' || C.state === 'sl' ? '已實現' : C.state === 'open' ? '未實現' : '尚未進場・'}損益：${sgn(C.pnl)}`); if (on('qty')) M.push(`數量：${C.qty}`); if (on('rr')) M.push(`風險報酬比：${C.rr.toFixed(2)}`);
     mid = M.length ? (cmp ? [M.join('，')] : M) : [];
-  } else {
+  } else if (showLab) {
     tpL = [`止盈 ${f(C.tp)}（${(s * (C.tp / C.e - 1) * 100).toFixed(2)}%）`]; slL = [`止損 ${f(C.sl)}（${(s * (C.sl / C.e - 1) * 100).toFixed(2)}%）`]; mid = [`${s > 0 ? '多' : '空'} ${f(C.e)}・盈虧比 ${C.rr.toFixed(2)}`];
-  }
+  } else { tpL = slL = mid = []; }
   const box = (L, y, where, bg) => { if (!L || !L.length) return; g.font = `${fs}px "IBM Plex Sans","Noto Sans TC",sans-serif`; const lh = fs + 5, w = Math.max(...L.map(t => g.measureText(t).width)) + 14, h = L.length * lh + 6;
     const cx = x0 + wd / 2, bx = cx - w / 2, by = where === 'up' ? y - h - 4 : where === 'down' ? y + 4 : y - h / 2;
     g.fillStyle = bg; g.beginPath(); if (g.roundRect) g.roundRect(bx, by, w, h, 4); else g.rect(bx, by, w, h); g.fill(); g.fillStyle = txC; g.textAlign = 'center'; L.forEach((t, i) => g.fillText(t, cx, by + 3 + lh * (i + 1) - 5)); g.textAlign = 'left'; };
@@ -1274,7 +1279,7 @@ function kdPosTab(d, tab, chk, sel) {
     + `<div class="ksfield"><span>文字</span><span class="kscol" style="--c:${esc(d.txC || '#ffffff')}"><input type="color" data-kp="txC" value="${ksHex(d.txC) || '#ffffff'}" aria-label="文字顏色"></span>${sel('txS', d.txS || 12, [10, 11, 12, 13, 14, 16, 18, 20].map(v => [v, v]), '文字大小')}</div>`
     + chk('plab', '價格標籤', d.plab !== false)
     + `<h4>資訊</h4><p class="kshint">統計數據（勾選要顯示的項目）</p><div class="kpst">${KD_POS_ST.map(([k2, n]) => `<label class="ksrow"><input type="checkbox" data-kpst="${k2}"${S.includes(k2) ? ' checked' : ''}><span>${n}</span></label>`).join('')}</div>`
-    + chk('statCmp', '精簡統計模式', d.statCmp !== false) + chk('statAlw', '始終顯示統計數據（不選取、滑鼠沒移上去也顯示）', d.statAlw);
+    + chk('statDet', '點選時顯示詳細統計（上面勾選的項目；不勾＝只顯示止盈、止損、盈虧比）', d.statDet) + chk('statCmp', '精簡統計模式（詳細統計每個框一行）', d.statCmp !== false) + chk('statAlw', '始終顯示（不點選也顯示標籤）', d.statAlw);
 }
 /* ---- 點選、拖曳 ---- */
 const kdDist = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy; let t = L ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)); };
@@ -1515,7 +1520,7 @@ function kdPropsDraw() {
     <div class="ksmain kimain" role="tabpanel">${body}</div>
     <div class="ksfoot"><select id="kdTplSel" aria-label="範本">${kdTplOpts(d.type)}</select><span class="spacer"></span><button class="btn" data-kpa="cancel">取消</button><button class="btn ksok" data-kpa="ok">確認</button></div>`;
 }
-const KD_STYLEK = ['color', 'width', 'lineSt', 'dash', 'ext', 'endS', 'endE', 'mid', 'plab', 'stats', 'statPos', 'statAlw', 'tx', 'vis', 'tpC', 'slC', 'lineC', 'txC', 'txS', 'posSt', 'statCmp', 'acct', 'riskV', 'riskU', 'qtyD'];
+const KD_STYLEK = ['color', 'width', 'lineSt', 'dash', 'ext', 'endS', 'endE', 'mid', 'plab', 'stats', 'statPos', 'statAlw', 'tx', 'vis', 'tpC', 'slC', 'lineC', 'txC', 'txS', 'posSt', 'statCmp', 'statDet', 'acct', 'riskV', 'riskU', 'qtyD'];
 function kdStyleOf(d, withText) { const o = {}; for (const k of KD_STYLEK) if (d[k] != null && k !== 'vis') o[k] = JSON.parse(JSON.stringify(d[k])); if (o.tx && !withText) o.tx = { ...o.tx, txt: '' }; if (withText && (d.type === 'text' || d.type === 'emoji') && d.text) o.text = d.text; return o; }   // withText：「我的範本」連線上的文字一起存
 function kdRemember(d) { if (!d || !KD_TOOLS[d.type] || d.type === 'ruler' || d.type === 'zoom') return; const all = LS.get('kdLast', {}); all[d.type] = kdStyleOf(d); LS.set('kdLast', all); }   // 記住這種工具最後用的樣式
 function kdTplApply(d, st) { const txt = d.tx && d.tx.txt, hasTxt = !!(st.tx && st.tx.txt); for (const k of KD_STYLEK) if (k !== 'vis') delete d[k]; d.color = d.type === 'fib' ? '#787b86' : KD.color; d.width = 2; Object.assign(d, JSON.parse(JSON.stringify(st))); if (txt && !hasTxt) d.tx = { ...(d.tx || {}), txt }; kdRemember(d); }
@@ -3589,7 +3594,7 @@ async function bxPoll() {
     { const now = new Map(BX.pos.map(x => [x.id, x.sym])), prev = BX.prevPos;   // 有倉位平掉了：問要不要清掉圖上的部位工具
       if (prev && BX.ok) { const gone = new Set([...prev].filter(([id]) => !now.has(id)).map(([, sym]) => sym)); for (const sym of gone) if (![...now.values()].includes(sym)) posClosed(sym); }
       BX.prevPos = now; }
-    BX.ok = true; BX.err = '';
+    BX.ok = true; BX.err = ''; try { coPostSync(); } catch (e) {}
   } catch (e) { BX.ok = false; BX.err = e.message; }
   finally { BX.busy = false; bxRender(); }
 }
@@ -3655,6 +3660,7 @@ function bxLines() {                                     // 持倉、掛單、�
 }
 
 /* ---- 下單表單：每筆下多少 U、止盈賺多少 U、止損虧多少 U（換算成觸發價，拉的時候即時顯示） ---- */
+const STOPT = () => LS.get('qxStopType', 'LAST_PRICE');   // 止盈止損用哪個價格觸發：LAST_PRICE 最新成交價／MARK_PRICE 標記價格
 const OF = { type: 'MARKET', dir: 1, sym: '', show: LS.get('qxPlShow', true), L: {}, drag: null, m: { tp: 'px', sl: 'px' }, v: { tp: 0, sl: 0 } };
 // 止盈、止損可以用三種方式設定，最後一次改的那個為準：px＝點位、u＝金額（U）、pct＝拉桿（保證金報酬 %）
 function ofPair() { return BX.pairs.get(QX.sym) || null; }
@@ -3665,7 +3671,7 @@ function ofSymChanged() {
   if (QX.sym !== OF.sym) { const first = !OF.sym; OF.sym = QX.sym; if (OF.type === 'LIMIT') $('ofPx').value = ''; if (!first) { for (const k of ['tp', 'sl']) if (OF.m[k] === 'px') { OF.v[k] = 0; } } }   // 換幣：點位不能沿用
   ofCalc();
 }
-function ofEntry() { return OF.type === 'LIMIT' ? (+$('ofPx').value > 0 ? +$('ofPx').value : 0) : (QX.px || QX.mark); }
+function ofEntry() { if (CO.post && CO.post.entry) return CO.post.entry; return OF.type === 'LIMIT' ? (+$('ofPx').value > 0 ? +$('ofPx').value : 0) : (QX.px || QX.mark); }
 function ofQty() {                                       // 保證金 × 槓桿 ÷ 進場價，照交易所的精度往下取
   const pr = ofPair(), m = +$('ofMgn').value, lev = +$('ofLev').value || 1, px = ofEntry(); if (!(m > 0) || !(px > 0)) return 0;
   const raw = m * lev / px; return pr ? flr(raw, +pr.basePrecision || 0) : +raw.toPrecision(6);
@@ -3807,11 +3813,11 @@ async function bxSetTpsl(p, tp, sl) {
     const keepTp = hasTp(o) && tp > 0, keepSl = hasSl(o) && sl > 0;
     if ((hasTp(o) && !keepTp) || (hasSl(o) && !keepSl)) { await cancel(o); continue; }   // 這張單有一邊要拿掉：整張撤掉，留下的那邊後面重新掛
     const posBody = { symbol: p.sym, positionId: p.id };
-    if (keepTp) Object.assign(posBody, { tpPrice: fx(tp), tpStopType: o.tpStopType || 'MARK_PRICE' });
-    if (keepSl) Object.assign(posBody, { slPrice: fx(sl), slStopType: o.slStopType || 'MARK_PRICE' });
+    if (keepTp) Object.assign(posBody, { tpPrice: fx(tp), tpStopType: STOPT() });
+    if (keepSl) Object.assign(posBody, { slPrice: fx(sl), slStopType: STOPT() });
     const body = { orderId: String(o.id) };
-    if (keepTp) Object.assign(body, { tpPrice: fx(tp), tpStopType: o.tpStopType || 'MARK_PRICE', tpOrderType: 'MARKET' }, +o.tpQty > 0 ? { tpQty: String(o.tpQty) } : {});
-    if (keepSl) Object.assign(body, { slPrice: fx(sl), slStopType: o.slStopType || 'MARK_PRICE', slOrderType: 'MARKET' }, +o.slQty > 0 ? { slQty: String(o.slQty) } : {});
+    if (keepTp) Object.assign(body, { tpPrice: fx(tp), tpStopType: STOPT(), tpOrderType: 'MARKET' }, +o.tpQty > 0 ? { tpQty: String(o.tpQty) } : {});
+    if (keepSl) Object.assign(body, { slPrice: fx(sl), slStopType: STOPT(), slOrderType: 'MARKET' }, +o.slQty > 0 ? { slQty: String(o.slQty) } : {});
     try {
       if (isPos(o)) await bxReq('POST', '/api/v1/futures/tpsl/position/modify_order', posBody);
       else { try { await bxReq('POST', '/api/v1/futures/tpsl/modify_order', body); } catch (e) { await bxReq('POST', '/api/v1/futures/tpsl/position/modify_order', posBody); } }
@@ -3820,10 +3826,10 @@ async function bxSetTpsl(p, tp, sl) {
   }
   if (needTp || needSl) {                                  // 還沒有的那一邊：新掛一張（數量＝整個倉位）
     const body = { symbol: p.sym, positionId: p.id };
-    if (needTp) Object.assign(body, { tpPrice: fx(tp), tpStopType: 'MARK_PRICE', tpOrderType: 'MARKET', tpQty: String(p.qty) });
-    if (needSl) Object.assign(body, { slPrice: fx(sl), slStopType: 'MARK_PRICE', slOrderType: 'MARKET', slQty: String(p.qty) });
+    if (needTp) Object.assign(body, { tpPrice: fx(tp), tpStopType: STOPT(), tpOrderType: 'MARKET', tpQty: String(p.qty) });
+    if (needSl) Object.assign(body, { slPrice: fx(sl), slStopType: STOPT(), slOrderType: 'MARKET', slQty: String(p.qty) });
     try { await bxReq('POST', '/api/v1/futures/tpsl/place_order', body); }
-    catch (e) { const pb = { symbol: p.sym, positionId: p.id }; if (needTp) Object.assign(pb, { tpPrice: fx(tp), tpStopType: 'MARK_PRICE' }); if (needSl) Object.assign(pb, { slPrice: fx(sl), slStopType: 'MARK_PRICE' });
+    catch (e) { const pb = { symbol: p.sym, positionId: p.id }; if (needTp) Object.assign(pb, { tpPrice: fx(tp), tpStopType: STOPT() }); if (needSl) Object.assign(pb, { slPrice: fx(sl), slStopType: STOPT() });
       try { await bxReq('POST', '/api/v1/futures/tpsl/position/place_order', pb); } catch (e2) { throw new Error('新增失敗：' + e2.message); } }
   }
 }
@@ -3868,7 +3874,7 @@ function tpBind() {
 
 function ofSave() { LS.set('qxPl2', { m: $('ofMgn').value, mode: OF.m, v: OF.v }); }
 function ofMsg(t, c) { const m = $('ofMsg'); m.textContent = t; m.className = 'ofmsg' + (c ? ' ' + c : ''); }
-async function ofSubmit(skipCfm) {
+async function ofSubmit(skipCfm, noTpsl) {
   const dir = OF.dir;
   try {
     if (!BX.key) return setOpen();
@@ -3880,12 +3886,12 @@ async function ofSubmit(skipCfm) {
     if (!(+$('ofMgn').value > 0)) throw new Error('請填每筆下多少 U');
     const P = ofPlan(); if (!(P.E > 0)) throw new Error(OF.type === 'LIMIT' ? '請填限價進場點位' : '讀不到價格，請稍等一下'); if (!(P.q > 0)) throw new Error('請填每筆下多少 U');
     if (P.q < +pr.minTradeVolume) throw new Error(`下單量 ${P.q} 小於最小下單量 ${pr.minTradeVolume}，請加大每筆金額或槓桿`);
-    if (P.tpBad) throw new Error('止盈點位方向反了'); if (P.slBad) throw new Error('止損點位方向反了');
-    if (P.sl && (dir > 0 ? P.sl <= P.liq : P.sl >= P.liq)) throw new Error('止損價超過強平價，請把止損設近一點或降低槓桿');
+    if (!noTpsl && P.tpBad) throw new Error('止盈點位方向反了'); if (!noTpsl && P.slBad) throw new Error('止損點位方向反了');
+    if (!noTpsl && P.sl && (dir > 0 ? P.sl <= P.liq : P.sl >= P.liq)) throw new Error('止損價超過強平價，請把止損設近一點或降低槓桿');
     const body = { symbol: sym, qty: String(P.q), side: dir > 0 ? 'BUY' : 'SELL', tradeSide: 'OPEN', orderType: OF.type, clientId: 'qx' + Date.now().toString(36) };
     if (OF.type === 'LIMIT') { if (!(+$('ofPx').value > 0)) throw new Error('請填限價'); body.price = P.E.toFixed(qp); body.effect = 'GTC'; }
-    if (P.tp) Object.assign(body, { tpPrice: P.tp.toFixed(qp), tpStopType: 'MARK_PRICE', tpOrderType: 'MARKET' });
-    if (P.sl) Object.assign(body, { slPrice: P.sl.toFixed(qp), slStopType: 'MARK_PRICE', slOrderType: 'MARKET' });
+    if (P.tp && !noTpsl) Object.assign(body, { tpPrice: P.tp.toFixed(qp), tpStopType: STOPT(), tpOrderType: 'MARKET' });
+    if (P.sl && !noTpsl) Object.assign(body, { slPrice: P.sl.toFixed(qp), slStopType: STOPT(), slOrderType: 'MARKET' });
     if (BX.cfm && skipCfm !== true) {
       $('cfmBody').innerHTML = [['合約', sym], ['方向', `<b class="${dir > 0 ? 'up' : 'dn'}">${dir > 0 ? '做多' : '做空'}</b>`], ['類型', OF.type === 'LIMIT' ? '限價 ' + body.price : `市價（約 ${klFmt(P.E)}）`], ['保證金', `${f2(P.m)} U・${lev}x ${mode === 'CROSS' ? '全倉' : '逐倉'}`], ['數量', `${P.q}（名目約 $${f2(P.q * P.E)}）`],
         ['止盈', P.tp ? `${body.tpPrice}　<b class="up">${sgn(P.tpU)} U・${sgn(P.tpRoe, 1)}%</b>` : '不設'], ['止損', P.sl ? `${body.slPrice}　<b class="dn">${sgn(P.slU)} U・${sgn(P.slRoe, 1)}%</b>` : '不設']].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('') + '<dt></dt><dd style="font-size:11.5px;color:var(--dim)">盈虧金額不含手續費、資金費</dd>';
@@ -3936,6 +3942,7 @@ function ofBind() {
   }
   document.querySelectorAll('.plx').forEach(b => b.onclick = () => { OF.v[b.dataset.x] = 0; ofCalc(); ofSave(); });
   $('ofChips').onclick = e => { const b = e.target.closest('button'); if (!b) return; $('ofMgn').value = b.dataset.u; ofCalc(); ofSave(); };
+  $('ofStopT').value = STOPT(); $('ofStopT').onchange = e => { LS.set('qxStopType', e.target.value); ofMsg(e.target.value === 'LAST_PRICE' ? '之後的止盈止損用「最新成交價」觸發' : '之後的止盈止損用「標記價格」觸發', 'ok'); };
   $('ofShow').onchange = e => { OF.show = e.target.checked; LS.set('qxPlShow', OF.show); ofCalc(); };
   $('ofGo').onclick = () => ofSubmit();
   $('ofCo').onclick = () => coOpen();
@@ -3998,13 +4005,23 @@ function coBox() {
   b.addEventListener('click', e => { const t = e.target.closest('[data-co]'); if (!t) return; const a = t.dataset.co;
     if (a === 'close') coClose(); else if (a === 'next') coGo(CO.step + 1); else if (a === 'back') coGo(CO.step - 1);
     else if (a === 'skip') { OF.v[CO.step === 2 ? 'tp' : 'sl'] = 0; ofCalc(); ofSave(); coGo(CO.step + 1); }
+    else if (a === 'quick') coQuick();
     else if (a === 'dir') { OF.dir = +t.dataset.v; [...$('ofDir').children].forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.v === OF.dir))); for (const k of ['tp', 'sl']) if (OF.m[k] === 'px') OF.v[k] = 0; ofCalc(); ofSave(); coGo(1); }
     else if (a === 'type') { $('ofType').querySelector(`[data-v="${t.dataset.v}"]`).click(); coGo(1); }
     else if (a === 'u') { $('ofMgn').value = t.dataset.v; $('ofMgn').dispatchEvent(new Event('input')); coGo(1); }
-    else if (a === 'go') coSubmit(); });
+    else if (a === 'go') coGo(4); });
   b.addEventListener('input', e => { const id = e.target.dataset.bind; if (!id) return; $(id).value = e.target.value; $(id).dispatchEvent(new Event('input')); coLive(); });
   return b;
 }
+function coPos(l, t) {                                   // 放在圖表範圍內，不會被拖到看不見
+  const b = $('coBox'), p = b && b.parentNode; if (!p) return; const W = p.clientWidth, H = p.clientHeight;
+  b.style.left = clamp(l, 0, Math.max(0, W - b.offsetWidth)) + 'px'; b.style.top = clamp(t, 0, Math.max(0, H - Math.min(b.offsetHeight, H))) + 'px';
+}
+function coOpen() {
+  if (!KL.cs) return; if (CO.step) { coClose(); return; }
+  OF.show = true; $('ofShow').checked = true; LS.set('qxPlShow', true); CO.post = null; coGo(1);
+}
+function coClose() { if (CO.post) { OF.v.tp = OF.v.sl = 0; ofSave(); } CO.step = 0; CO.post = null; const b = $('coBox'); if (b) b.hidden = true; ofCalc(); }
 function coPos(l, t) {                                   // 放在圖表範圍內，不會被拖到看不見
   const b = $('coBox'), p = b && b.parentNode; if (!p) return; const W = p.clientWidth, H = p.clientHeight;
   b.style.left = clamp(l, 0, Math.max(0, W - b.offsetWidth)) + 'px'; b.style.top = clamp(t, 0, Math.max(0, H - Math.min(b.offsetHeight, H))) + 'px';
@@ -4024,39 +4041,44 @@ function coPlace(k) {                                    // 還沒設：把線�
 }
 function coGo(n) {
   const P = ofPlan();
-  if (n === 2 && !(P.m > 0)) { coErr('先填每筆下多少 U'); return; }
-  if (n === 2 && !(P.E > 0)) { coErr(OF.type === 'LIMIT' ? '先填限價進場點位（或在圖上拖灰線）' : '等價格…'); return; }
+  if (!CO.post && n >= 2 && !(P.m > 0)) { coErr('先填每筆下多少 U，再按 Enter'); return; }
+  if (!CO.post && n >= 2 && !(P.E > 0)) { coErr(OF.type === 'LIMIT' ? '先填限價進場點位（或在圖上點一下價格）' : '等價格…'); return; }
   if (n === 3 && P.tpBad) { coErr('止盈拉到進場價的另一邊了'); return; }
-  if (n === 4 && P.slBad) { coErr('止損拉到進場價的另一邊了'); return; }
-  if (n === 4 && P.sl && P.d * (P.sl - P.liq) <= 0) { coErr('止損超過強平價，請拉近一點'); return; }
-  CO.step = clamp(n, 1, 4); if (CO.step === 2) coPlace('tp'); if (CO.step === 3) coPlace('sl');
-  const b = coBox(), coin = QX.sym.replace(/USDT$/, ''), dots = [1, 2, 3, 4].map(i => `<i class="${i < CO.step ? 'ok' : i === CO.step ? 'on' : ''}">${i}</i>`).join('<b></b>');
+  if (n === 4) {                                          // 第 ③ 步按 Enter：下單（或已經進場的話：送出止盈止損）
+    if (P.slBad) { coErr('止損拉到進場價的另一邊了'); return; }
+    if (P.sl && P.d * (P.sl - P.liq) <= 0) { coErr('止損超過強平價，請拉近一點'); return; }
+    if (CO.post) coApplyPost(); else coSubmit(); return;
+  }
+  if (CO.post && n < 2) n = 2;
+  CO.step = clamp(n, 1, 3); if (CO.step === 2) coPlace('tp'); if (CO.step === 3) coPlace('sl');
+  const b = coBox(), coin = QX.sym.replace(/USDT$/, ''), dots = [1, 2, 3].map(i => `<i class="${i < CO.step ? 'ok' : i === CO.step ? 'on' : ''}">${i}</i>`).join('<b></b>');
   const head = `<div class="coh" title="按住這一列可以拖到別的地方"><span class="cogrip" aria-hidden="true">⋮⋮</span><div class="costeps">${dots}</div><span class="spacer"></span><kbd>Esc</kbd><button class="ibtn" data-co="close" aria-label="關閉">✕</button></div>`;
-  let body = '';
-  if (CO.step === 1) body = `<h4>① ${coin} 下單設定</h4>
+  let body = CO.post ? `<p class="copost">✓ 已${CO.post.type === 'LIMIT' ? '掛限價單' : '進場'}，現在設定止盈止損（Esc＝先不設）</p>` : '';
+  if (CO.step === 1) body += `<h4>① ${coin} 金額</h4>
     <div class="seg co2"><button data-co="dir" data-v="1" aria-pressed="${OF.dir > 0}">做多</button><button data-co="dir" data-v="-1" aria-pressed="${OF.dir < 0}">做空</button></div>
     <div class="seg co2"><button data-co="type" data-v="MARKET" aria-pressed="${OF.type === 'MARKET'}">市價</button><button data-co="type" data-v="LIMIT" aria-pressed="${OF.type === 'LIMIT'}">限價</button></div>
     <div class="two"><label class="fld"><span>槓桿</span><div class="inp"><input data-bind="ofLev" type="number" min="1" step="1" inputmode="numeric" value="${esc($('ofLev').value)}"><em>x</em></div></label>
     <label class="fld"><span>每筆下多少</span><div class="inp"><input data-bind="ofMgn" id="coMgn" type="number" min="0" step="any" inputmode="decimal" placeholder="例如 20" value="${esc($('ofMgn').value)}"><em>U</em></div></label></div>
     <div class="pct">${[10, 20, 50, 100].map(u => `<button type="button" data-co="u" data-v="${u}">${u}U</button>`).join('')}</div>
-    ${OF.type === 'LIMIT' ? '<p class="cot">限價：在圖上拖<b>灰色虛線</b>，或直接<b>點一下</b>價格決定進場點位</p>' : ''}`;
-  else if (CO.step === 2) body = `<h4 class="up">② 把<b>綠線</b>拉到止盈點位</h4><p class="cot">或直接在 K 線圖上<b>點一下</b>價格</p>`;
-  else if (CO.step === 3) body = `<h4 class="dn">③ 把<b>紅線</b>拉到止損點位</h4><p class="cot">或直接在 K 線圖上<b>點一下</b>價格</p>`;
-  else body = `<h4>④ 確認下單</h4>`;
-  const foot = CO.step === 1 ? `<button class="btn primary" data-co="next">下一步：拉止盈 ↵</button>`
-    : CO.step < 4 ? `<button class="btn" data-co="back">上一步</button><button class="btn" data-co="skip">不設${CO.step === 2 ? '止盈' : '止損'}</button><button class="btn primary" data-co="next">${CO.step === 2 ? '下一步：拉止損' : '下一步：確認'} ↵</button>`
-    : `<button class="btn" data-co="back">上一步</button><button class="gobtn ${OF.dir > 0 ? 'b' : 's'}" data-co="go">確認${OF.dir > 0 ? '做多' : '做空'} ↵</button>`;
-  b.innerHTML = head + body + '<div class="colive" id="coLive"></div><p class="coerr" id="coErr" role="status"></p><div class="cof">' + foot + '</div>';
+    ${OF.type === 'LIMIT' ? '<p class="cot">限價：在圖上拖<b>灰色虛線</b>，或直接<b>點一下</b>價格決定進場點位</p>' : ''}<p class="cot">設好按 <kbd>Enter</kbd></p>`;
+  else if (CO.step === 2) body += `<h4 class="up">② 止盈：拉<b>綠線</b>或在圖上<b>點一下</b></h4>`;
+  else body += `<h4 class="dn">③ 止損：拉<b>紅線</b>或在圖上<b>點一下</b></h4>`;
+  const quick = !CO.post && CO.step >= 2 ? `<button class="coquick" data-co="quick" title="不設止盈止損，先${OF.type === 'LIMIT' ? '掛單' : '進場'}，之後再設">⚡ 直接${OF.type === 'LIMIT' ? '掛單' : '進場'}<span><kbd>空白鍵</kbd>×2</span></button>` : '';
+  const goTxt = CO.post ? '送出止盈止損' : `下單${OF.dir > 0 ? '做多' : '做空'}`;
+  const foot = CO.step === 1 ? `<button class="btn primary" data-co="next">下一步：止盈 ↵</button>`
+    : CO.step === 2 ? `${CO.post ? '' : '<button class="btn" data-co="back">上一步</button>'}<button class="btn" data-co="skip">不設止盈</button><button class="btn primary" data-co="next">下一步：止損 ↵</button>`
+    : `<button class="btn" data-co="back">上一步</button><button class="btn" data-co="skip">不設止損</button><button class="gobtn ${OF.dir > 0 ? 'b' : 's'}" data-co="go">${goTxt} ↵</button>`;
+  b.innerHTML = head + body + '<div class="colive" id="coLive"></div><p class="coerr" id="coErr" role="status"></p><div class="cof">' + foot + '</div>' + quick;
   b.dataset.step = CO.step; b.hidden = false; coLive();
   { const sp = LS.get('qxCoPos', null); coPos(sp ? sp.l : 10, sp ? sp.t : 52); }
-  if (CO.step === 1) { const m = $('coMgn'); if (m && !m.value) m.focus(); }
+  if (CO.step === 1) { const m = $('coMgn'); if (m) { m.focus(); m.select(); } } else if (document.activeElement && b.contains(document.activeElement)) document.activeElement.blur();   // 第②③步把焦點拿掉，空白鍵、Enter 才不會被輸入框吃掉
 }
 function coErr(t) { const e = $('coErr'); if (e) e.textContent = t; }
 function coLive() {                                      // 拉線的時候即時更新
   if (!CO.step) return; const el = $('coLive'); if (!el) return; const P = ofPlan(), coin = QX.sym.replace(/USDT$/, '');
   const row = (a, b, c) => `<span>${a}</span><b class="${c || ''}">${b}</b>`;
   const tpS = P.tp ? `${klFmt(P.tp)}・${P.tpU == null ? '' : sgn(P.tpU) + 'U・'}${sgn(P.tpRoe, 1)}%` : '不設', slS = P.sl ? `${klFmt(P.sl)}・${P.slU == null ? '' : sgn(P.slU) + 'U・'}${sgn(P.slRoe, 1)}%` : '不設';
-  let h = row('進場', P.E ? `${OF.type === 'LIMIT' ? '限價' : '市價約'} ${klFmt(P.E)}` : '—') + row('數量', P.q ? `${P.q} ${coin}・名目 $${f2(P.q * P.E)}` : '—');
+  let h = row('進場', P.E ? `${CO.post ? (CO.post.entry ? '持倉' : '等待成交…') : OF.type === 'LIMIT' ? '限價' : '市價約'} ${klFmt(P.E)}` : '—') + row('數量', P.q ? `${P.q} ${coin}・名目 $${f2(P.q * P.E)}` : '—');
   if (CO.step >= 2) h += row('止盈', tpS, P.tpBad ? 'dn' : 'up') + (P.tp ? row('', `價格 ${sgn(P.tpMv)}%`, '') : '');
   if (CO.step >= 3) h += row('止損', slS, 'dn') + (P.sl ? row('', `價格 ${sgn(P.slMv)}%`, '') : '');
   if (CO.step >= 3 && P.tp && P.sl && !P.tpBad && !P.slBad) h += row('風險報酬比', `1 : ${(Math.abs(P.tpMv) / Math.abs(P.slMv)).toFixed(2)}`);
@@ -4065,16 +4087,43 @@ function coLive() {                                      // 拉線的時候即�
   const e = $('coErr'); if (e && CO.step === 2 && P.tpBad) e.textContent = '止盈在進場價的另一邊'; else if (e && CO.step === 3 && P.slBad) e.textContent = '止損在進場價的另一邊'; else if (e && CO.step > 1 && e.textContent.includes('另一邊')) e.textContent = '';
 }
 async function coSubmit() {
-  const b = $('coBox'), btn = b && b.querySelector('[data-co="go"]'); if (btn) { btn.disabled = true; btn.textContent = '送出中…'; }
-  if (!BX.key) { coErr('還沒設定 Bitunix API'); setOpen(); if (btn) { btn.disabled = false; btn.textContent = '確認下單'; } return; }
+  const b = $('coBox'), btn = b && b.querySelector('[data-co="go"]'), txt = btn && btn.textContent; if (btn) { btn.disabled = true; btn.textContent = '送出中…'; }
+  if (!BX.key) { coErr('還沒設定 Bitunix API'); setOpen(); if (btn) { btn.disabled = false; btn.textContent = txt; } return; }
   const ok = await ofSubmit(true);
-  if (ok) { coClose(); } else { coErr($('ofMsg').textContent || '下單失敗'); if (btn) { btn.disabled = false; btn.textContent = `確認${OF.dir > 0 ? '做多' : '做空'} ↵`; } }
+  if (ok) { qxToast(`✓ 已${OF.type === 'LIMIT' ? '掛單' : '下單'}${OF.dir > 0 ? '做多' : '做空'}`, true); coClose(); } else { coErr($('ofMsg').textContent || '下單失敗'); if (btn) { btn.disabled = false; btn.textContent = txt; } }
+}
+async function coQuick() {                                // 空白鍵兩下：先進場，止盈止損之後再設
+  if (CO.post) return; if (CO.step < 2) { coErr('先設好金額按 Enter，才能直接進場'); return; }
+  if (!BX.key) { coErr('還沒設定 Bitunix API'); setOpen(); return; }
+  const keep = { m: { ...OF.m }, v: { ...OF.v } }, type = OF.type, dir = OF.dir, sym = QX.sym; coErr(''); qxToast('送出中…', true);
+  const ok = await ofSubmit(true, true);
+  if (!ok) { coErr($('ofMsg').textContent || '下單失敗'); qxToast($('ofMsg').textContent || '下單失敗', false); return; }
+  OF.m = keep.m; OF.v = keep.v; CO.post = { sym, dir, type, entry: 0, id: '' }; ofCalc();
+  qxToast(`✓ 已${type === 'LIMIT' ? '掛單' : '進場'}${dir > 0 ? '做多' : '做空'}，接著設定止盈止損`, true); coGo(2); setTimeout(bxPoll, 500);
+}
+function coPostSync() {                                   // 等 Bitunix 回報新持倉：拿到真的開倉價
+  if (!CO.post || CO.post.id) return; const p = BX.pos.find(x => x.sym === CO.post.sym && x.dir === CO.post.dir); if (!p) return;
+  CO.post.id = p.id; CO.post.entry = p.entry; ofCalc(); if (CO.step) coLive();
+}
+async function coApplyPost() {
+  coPostSync(); const p = CO.post && BX.pos.find(x => x.id === CO.post.id);
+  if (!p) { coErr(CO.post && CO.post.type === 'LIMIT' ? '限價單還沒成交，成交後才能設定止盈止損' : '還在等 Bitunix 回報持倉，稍等一下再按 Enter'); bxPoll(); return; }
+  const P = ofPlan(); if (!P.tp && !P.sl) { coClose(); return; }
+  const btn = $('coBox').querySelector('[data-co="go"]'); if (btn) { btn.disabled = true; btn.textContent = '送出中…'; }
+  try { await bxSetTpsl(p, P.tp || p.tp || 0, P.sl || p.sl || 0); qxToast('✓ 止盈止損已設定', true); OF.v.tp = OF.v.sl = 0; ofSave(); CO.post = null; coClose(); setTimeout(bxPoll, 600); }
+  catch (e) { coErr(e.message); if (btn) { btn.disabled = false; btn.textContent = '送出止盈止損 ↵'; } }
 }
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey && e.altKey) && !e.shiftKey && (e.key === 'h' || e.key === 'H')) { e.preventDefault(); e.stopPropagation(); coOpen(); return; }
   if (!CO.step) return;
+  const ae = document.activeElement, typing = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
   if (e.key === 'Escape') { e.preventDefault(); coClose(); }
-  else if (e.key === 'Enter' && !e.isComposing && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) { e.preventDefault(); if (CO.step === 4) coSubmit(); else coGo(CO.step + 1); }
+  else if (e.key === 'Enter' && !e.isComposing && !(ae && ae.tagName === 'BUTTON')) { e.preventDefault(); coGo(CO.step + 1); }
+  else if ((e.code === 'Space' || e.key === ' ') && !typing) {
+    e.preventDefault(); if (e.repeat) return;
+    if (CO.post) return; if (CO.step < 2) { coErr('先設好金額按 Enter，才能用空白鍵直接進場'); return; }
+    const now = Date.now(); if (now - (CO.lastSp || 0) < 450) { CO.lastSp = 0; coQuick(); } else { CO.lastSp = now; coErr(''); qxToast(`再按一次空白鍵＝直接${OF.type === 'LIMIT' ? '掛單' : '進場'}（不帶止盈止損）`, true); }
+  }
 }, true);
 
 /* ---------- 點圖選價：不用拉，直接在 K 線圖上點一下價格就設定（限價進場、止盈、止損） ---------- */
